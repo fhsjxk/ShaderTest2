@@ -23,7 +23,7 @@ void main()
 		return;
 	}
   float b = pow(smoothstep(0.1, 1.0, normalize(viewRay).y + 0.2), 0.1);
-  color.rgb = mix(vec3(0.5, 0.65, 0.9)*1.5, vec3(0.18, 0.4, 1.0)*0.3, vec3(pow(b,3.0)));
+  color.rgb = mix(vec3(0.5, 0.65, 0.9)*1.5, vec3(0.18, 0.4, 1.0)*0.3, vec3(pow(b,3.0))) * 0.6;
 }
 #endif
 

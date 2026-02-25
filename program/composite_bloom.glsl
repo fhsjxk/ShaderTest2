@@ -58,7 +58,9 @@ void main()
 
         //bloom += textureLod({RT_BACK}, texcoord + vec2(0, 0), i).rgb * 1.6;
     }
-    outColor.rgb += bloomSum * 0.035;
+    bloomSum /= float(mips - 3);
+
+    outColor.rgb = mix(color, bloomSum, 0.25);
 }
 #endif
 

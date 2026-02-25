@@ -167,7 +167,26 @@ void main() {
 
   float fakeGI = 1.0 + (1.0 - lighting0.b) * (1 - normal.a) * float(shadow) * 3.0;
 
-	color.rgb = adjustSaturationFast(baseColor, fakeGI * 0.05 + 0.95) * (sunLightAmount * fakeGI * lighting0.g + sunLightAmount * 3.0 * vec3(0.95, 0.88, 0.84) + 1.0 * (lighting0.g - 0.0) * lighting0.b * ambientAmount * vec3(0.4, 0.6, 1.0) + lighting0.r * lighting0.r * vec3(1.0, 0.5, 0.1));
+	// --- 1. 预处理参数 ---
+  float giFactor = fakeGI * 0.05 + 0.95; 
+  vec3  baseAlbedo = adjustSaturationFast(baseColor, giFactor);
+
+  // --- 2. 各项光源计算 ---
+  // 太阳光：包含基础阳光和受GI影响的部分
+  vec3 sunColor = vec3(0.95, 0.88, 0.84); // 暖白色阳光
+  vec3 diffuseSun = sunLightAmount * (fakeGI * lighting0.g + 3.0 * sunColor);
+
+  // 天光：基于 lighting0.b (通常是天空亮度) 的蓝色补光
+  vec3 skyColor = vec3(0.4, 0.6, 1.0); // 冷蓝色天光
+  vec3 ambientLight = ambientAmount * lighting0.g * lighting0.b * skyColor;
+
+  // 局部发光：例如火把或岩浆，使用 lighting0.r (通常是方块光)
+  vec3 localLightColor = vec3(1.0, 0.6, 0.2); // 橙红色
+  vec3 localLight = pow(lighting0.r, 3.0) * localLightColor * 2.0;
+
+  // --- 3. 最终合成 ---
+  const float masterGain = 0.6; // 总亮度增益
+  color.rgb = baseAlbedo * (diffuseSun + ambientLight + localLight) * masterGain;
   //color.rgb += spec.xxx * 0.05;
 }
 #endif
