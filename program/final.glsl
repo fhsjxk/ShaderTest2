@@ -18,7 +18,6 @@ in vec2 texcoord;
 layout(location = 0) out vec4 color;
 
 // GLOBAL SETTINGS
-{{GLOBAL_SETTINGS}}
 
 {{RT_FORMATS}}
 

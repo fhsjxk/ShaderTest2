@@ -1,5 +1,7 @@
 #define PI 3.141592653589793
 
+{{GLOBAL_SETTINGS}}
+
 float saturate(float x)
 {
   return clamp(x, 0.0, 1.0);

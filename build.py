@@ -109,9 +109,6 @@ SHADER_CONFIG.update({
 "{{POS_LIGHTING_LUT_VALUE}}": "11, 0",
 })
 
-with open("global_settings.glsl", mode="r", encoding="utf-8") as gs:
-    SHADER_CONFIG["{{GLOBAL_SETTINGS}}"] = gs.read()
-
 PREPARE_INDEX = [
 "sky",
 "lightingLUT",
@@ -165,12 +162,15 @@ def generate_shader_gbuffer(stage, program):
         ]
     return process_text("\n".join(lines))
 
+with open("global_settings.glsl", mode="r", encoding="utf-8") as gs:
+    SHADER_CONFIG["{{GLOBAL_SETTINGS}}"] = process_text(gs.read())
+
 if(os.path.exists(FOLDER_SHADER)):
     shutil.rmtree(FOLDER_SHADER)
 
 os.makedirs(FOLDER_SHADER)
 shutil.copytree(FOLDER_TEXTURE, os.path.join(FOLDER_SHADER, FOLDER_TEXTURE))
-shutil.copytree(FOLDER_LIB, os.path.join(FOLDER_SHADER, FOLDER_LIB))
+os.makedirs(FOLDER_SHADER + FOLDER_LIB)
 os.makedirs(FOLDER_SHADER + FOLDER_PROGRAM)
 os.makedirs(FOLDER_SHADER + FOLDER_WORLD_0)
 
@@ -232,6 +232,10 @@ for file_name in os.listdir("./"):
         continue
 
     if os.path.isfile(file_name) and not file_name.endswith(".py"):
-        shutil.copy(file_name, os.path.join(FOLDER_SHADER, file_name))
+        process_file(file_name)
 
-process_file("shaders.properties")
+for file_name in os.listdir(FOLDER_LIB):
+    if file_name in FILE_IGNORE:
+        continue
+
+    process_file(os.path.join(FOLDER_LIB, file_name))
