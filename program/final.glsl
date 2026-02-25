@@ -17,10 +17,6 @@ in vec2 texcoord;
 
 layout(location = 0) out vec4 color;
 
-// GLOBAL SETTINGS
-
-{{RT_FORMATS}}
-
 // LOCAL SETTINGS
 
 
@@ -41,7 +37,7 @@ void main()
     color.rgb = pow(aces(texelFetch({RT_BACK}, pixelCoord, 0).rgb), vec3(1.0/2.2));
     #ifdef VIGNETTE_AMOUNT != 0.0
     float vignetteMask = texture(vignettetex, texcoord).r * VIGNETTE_AMOUNT + (1.0 - VIGNETTE_AMOUNT);
-    color.rgb *= vignetteMask;
+    //color.rgb *= vignetteMask;
     #endif
 
     #ifdef DEBUG_VIEW

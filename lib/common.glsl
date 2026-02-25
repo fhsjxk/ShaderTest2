@@ -2,6 +2,8 @@
 
 {{GLOBAL_SETTINGS}}
 
+{{RT_FORMATS}}
+
 float saturate(float x)
 {
   return clamp(x, 0.0, 1.0);
