@@ -167,7 +167,7 @@ void main() {
 
   float fakeGI = 1.0 + (1.0 - lighting0.b) * (1 - normal.a) * float(shadow) * 3.0;
 
-	color.rgb = adjustSaturationFast(baseColor, fakeGI * 0.05 + 0.95) * (sunLightAmount * fakeGI * lighting0.g + sunLightAmount * 3.0 * vec3(0.95, 0.88, 0.84) + 1.0 * (lighting0.g - 0.0) * lighting0.b * ambientAmount * vec3(0.4, 0.6, 1.0));
+	color.rgb = adjustSaturationFast(baseColor, fakeGI * 0.05 + 0.95) * (sunLightAmount * fakeGI * lighting0.g + sunLightAmount * 3.0 * vec3(0.95, 0.88, 0.84) + 1.0 * (lighting0.g - 0.0) * lighting0.b * ambientAmount * vec3(0.4, 0.6, 1.0) + lighting0.r * lighting0.r * vec3(1.0, 0.5, 0.1));
   //color.rgb += spec.xxx * 0.05;
 }
 #endif

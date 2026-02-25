@@ -38,8 +38,8 @@ RT_DEFS = [
         "format": "RGBA8",
     },
     {
-        "name": "RT_LIGHTING0", # RGB:LightLevel A:AO
-        "format": "RGBA8",
+        "name": "RT_LIGHTING0", # RG:LightLevel B:AO
+        "format": "R11F_G11F_B10F",
     },
     {
         "name": "RT_LIGHTING1", # Unused

@@ -21,10 +21,10 @@ layout(location = 0) out vec4 color;
 
 
 vec3 aces(vec3 x) {
-    const float a = 2.57;
-    const float b = 0.637;
-    const float c = 2.66;
-    const float d = 0.0;
+    const float a = 2.6;
+    const float b = 0.7;
+    const float c = 2.62;
+    const float d = 0.4;
     const float e = 1.2;
     return (x * (a * x + b)) / (x * (c * x + d) + e);
 }
