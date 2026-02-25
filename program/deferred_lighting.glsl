@@ -36,8 +36,6 @@ in vec3 viewRay;
 #define SHADOW_RANGE 3
 #define SHADOW_RADIUS 0.5
 
-{{SHADER_SETS_SHAMAP_RES}}
-
 vec3 distortShadowClipPos(vec3 shadowClipPos){
   float distortionFactor = length(shadowClipPos.xy); // distance from the player in shadow clip space
   distortionFactor += 0.1; // very small distances can cause issues so we add this to slightly reduce the distortion

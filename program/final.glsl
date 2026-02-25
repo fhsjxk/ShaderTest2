@@ -18,9 +18,7 @@ in vec2 texcoord;
 layout(location = 0) out vec4 color;
 
 // GLOBAL SETTINGS
-const float sunPathRotation = -30.0;
-const bool {RT_BACK}Clear = false;
-const bool {RT_LIGHTING_LUT}Clear = false;
+{{GLOBAL_SETTINGS}}
 
 {{RT_FORMATS}}
 

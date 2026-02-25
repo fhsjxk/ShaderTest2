@@ -6,17 +6,19 @@ VERSION_HEADER = "#version 450 compatibility"
 
 FOLDER_SHADER = "E:/Minecraft/.minecraft/versions/1.21.11-Fabric/shaderpacks/ShaderTest2/shaders/"
 
-FOLDER_TEXTURE = "texture"
+FOLDER_TEXTURE = "textures"
 FOLDER_LIB = "lib"
 FOLDER_PROGRAM = "program"
 FOLDER_WORLD_0 = "world0"
+
+FILE_IGNORE = ["global_settings.glsl", ".gitignore"]
+
+GBUFFER_COMMON_FILE = "gbuffers_common.glsl"
 
 GBUFFER_PROGRAMS = ["basic"]
 #GBUFFER_PROGRAMS = ["basic", "entities","weather", "water", "hand_water", "skybasic", "skytextured"]
 #GBUFFER_PROGRAMS = ["basic", "terrain", "block", "entities", "hand"]
 #GBUFFER_PROGRAMS = ["basic", "line", "textured", "textured_lit", "skybasic", "skytextured", "clouds", "terrain", "damagedblock", "block", "beaconbeam", "entities", "armor_glint", "spidereyes", "hand", "weather", "water", "hand_water"]
-
-GBUFFER_COMMON_FILE = "gbuffers_common.glsl"
 
 RT_DEFS = [
     {
@@ -104,17 +106,11 @@ SHADER_CONFIG.update({
 "{{SHADER_FRAG}}": "SHADER_FRAG",
 "{{SHADER_VERT}}": "SHADER_VERT",
 
-"{{SHADER_SETS}}": """
-const float sunPathRotation = -20.0;
-const bool {RT_BACK}MipmapEnabled = true;
-const int shadowMapResolution = 2048;
-""",
-
-"{{SHADER_SETS_SHAMAP_RES}}" : "const int shadowMapResolution = 2048;",
-
 "{{POS_LIGHTING_LUT_VALUE}}": "11, 0",
 })
 
+with open("global_settings.glsl", mode="r", encoding="utf-8") as gs:
+    SHADER_CONFIG["{{GLOBAL_SETTINGS}}"] = gs.read()
 
 PREPARE_INDEX = [
 "sky",
@@ -142,10 +138,10 @@ def process_text(text):
     return text
 
 def process_file(path):
-    with open(path, mode="r", encoding='utf-8') as f:
+    with open(path, mode="r", encoding="utf-8") as f:
         text = f.read()
     text = process_text(text)
-    with open(os.path.join(FOLDER_SHADER, path), mode="w", encoding='utf-8') as f:
+    with open(os.path.join(FOLDER_SHADER, path), mode="w", encoding="utf-8") as f:
         f.write(text)
 
 def generate_shader(stage, program):
@@ -187,10 +183,10 @@ for program in GBUFFER_PROGRAMS:
     content_fsh = generate_shader_gbuffer(SHADER_CONFIG["{{SHADER_FRAG}}"], program)
     content_vsh = generate_shader_gbuffer(SHADER_CONFIG["{{SHADER_VERT}}"], program)
 
-    with open(path_fsh, "w", encoding='utf-8') as f:
+    with open(path_fsh, "w", encoding="utf-8") as f:
         f.write(content_fsh)
     
-    with open(path_vsh, "w", encoding='utf-8') as f:
+    with open(path_vsh, "w", encoding="utf-8") as f:
         f.write(content_vsh)
         
 process_file(os.path.join(FOLDER_PROGRAM, GBUFFER_COMMON_FILE))
@@ -225,13 +221,16 @@ for file_name in os.listdir(FOLDER_PROGRAM):
     content_fsh = generate_shader(SHADER_CONFIG["{{SHADER_FRAG}}"], file_name_base)
     content_vsh = generate_shader(SHADER_CONFIG["{{SHADER_VERT}}"], file_name_base)
 
-    with open(path_fsh, "w", encoding='utf-8') as f:
+    with open(path_fsh, "w", encoding="utf-8") as f:
         f.write(content_fsh)
     
-    with open(path_vsh, "w", encoding='utf-8') as f:
+    with open(path_vsh, "w", encoding="utf-8") as f:
         f.write(content_vsh)
 
 for file_name in os.listdir("./"):
+    if file_name in FILE_IGNORE:
+        continue
+
     if os.path.isfile(file_name) and not file_name.endswith(".py"):
         shutil.copy(file_name, os.path.join(FOLDER_SHADER, file_name))
 
