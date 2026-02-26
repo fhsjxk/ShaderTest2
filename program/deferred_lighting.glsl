@@ -9,11 +9,11 @@ uniform sampler2D shadowtex1;
 uniform sampler2D shadowtex0;
 uniform sampler2D shadowcolor0;
 
-uniform sampler2D {RT_BACK};
-uniform sampler2D {RT_BASE_COLOR};
-uniform sampler2D {RT_NORMAL};
-uniform sampler2D {RT_LIGHTING0};
-uniform sampler2D {RT_SKYVIEW};
+uniform sampler2D {{RT_BACK}};
+uniform sampler2D {{RT_BASE_COLOR}};
+uniform sampler2D {{RT_NORMAL}};
+uniform sampler2D {{RT_LIGHTING0}};
+uniform sampler2D {{RT_SKYVIEW}};
 
 uniform sampler2D noisetex;
 
@@ -131,13 +131,13 @@ void main() {
 	float depth = texture(depthtex0, texcoord).r;
 	if (depth == 1.0)
   {
-    color.rgb = texture({RT_SKYVIEW}, texcoord).rgb;
+    color.rgb = texture({{RT_SKYVIEW}}, texcoord).rgb;
 		return;
 	}
 
-  vec3 baseColor = texture({RT_BASE_COLOR}, texcoord).rgb;
-  vec4 normal = texture({RT_NORMAL}, texcoord);
-  vec4 lighting0 = texture({RT_LIGHTING0}, texcoord);
+  vec3 baseColor = texture({{RT_BASE_COLOR}}, texcoord).rgb;
+  vec4 normal = texture({{RT_NORMAL}}, texcoord);
+  vec4 lighting0 = texture({{RT_LIGHTING0}}, texcoord);
 
 	vec3 NDCPos = vec3(texcoord.xy, depth) * 2.0 - 1.0;
 	vec3 viewPos = projectAndDivide(gbufferProjectionInverse, NDCPos);

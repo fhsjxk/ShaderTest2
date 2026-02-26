@@ -86,8 +86,8 @@ for index, rt in enumerate(RT_DEFS):
     format = rt.get("format", "RGBA16F")
     size = rt.get("size", "1.0 1.0")
 
-    SHADER_CONFIG[f"{{{{{name}}}}}"] = index
-    SHADER_CONFIG[f"{{{name}}}"] = f"colortex{index}"
+    SHADER_CONFIG[f"{{{name}}}"] = index
+    SHADER_CONFIG[f"{{{{{name}}}}}"] = f"colortex{index}"
 
     rt_formats_lines.append(
         f"const int colortex{index}Format = {format};"

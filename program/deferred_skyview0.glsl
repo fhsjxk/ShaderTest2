@@ -4,16 +4,16 @@
 #include "/lib/options.glsl"
 
 uniform sampler2D depthtex0;
-uniform sampler2D {RT_BACK};
+uniform sampler2D {{RT_BACK}};
 
 in vec2 texcoord;
 
-/* RENDERTARGETS: {{RT_BACK}} */
+/* RENDERTARGETS: {RT_BACK} */
 layout(location = 0) out vec4 color;
 
 void main()
 {
-	//color.rgb = texelFetch({RT_BACK}, ivec2(gl_FragCoord.xy), 0).rgb;
+	//color.rgb = texelFetch({{RT_BACK}}, ivec2(gl_FragCoord.xy), 0).rgb;
 	color.r = float(texelFetch(depthtex0, ivec2(gl_FragCoord.xy), 0).r == 1.0) * 100.0;
 }
 #endif

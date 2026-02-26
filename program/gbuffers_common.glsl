@@ -23,9 +23,9 @@ in vec4 lighting;
 in float sunLighting;
 
 #ifdef MC_TEXTURE_FORMAT_LAB_PBR
-/* RENDERTARGETS: {{RT_BASE_COLOR}},{{RT_NORMAL}},{{RT_LIGHTING0}},{{RT_SPECULAR}} */
+/* RENDERTARGETS: {RT_BASE_COLOR},{RT_NORMAL},{RT_LIGHTING0},{RT_SPECULAR} */
 #else
-/* RENDERTARGETS: {{RT_BASE_COLOR}},{{RT_NORMAL}},{{RT_LIGHTING0}} */
+/* RENDERTARGETS: {RT_BASE_COLOR},{RT_NORMAL},{RT_LIGHTING0} */
 #endif
 
 layout(location = 0) out vec4 outBaseColor;

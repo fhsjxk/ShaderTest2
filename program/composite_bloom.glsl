@@ -4,7 +4,7 @@
 #include "/lib/options.glsl"
 
 uniform sampler2D noisetex;
-uniform sampler2D {RT_BACK};
+uniform sampler2D {{RT_BACK}};
 
 uniform float viewWidth;
 uniform float viewHeight;
@@ -14,16 +14,16 @@ uniform float frameTimeCounter;
 in vec2 texcoord;
 
 // LOCAL SETTINGS
-const bool {RT_BACK}MipmapEnabled = true;
+const bool {{RT_BACK}}MipmapEnabled = true;
 
-/* RENDERTARGETS: {{RT_BACK}} */
+/* RENDERTARGETS: {RT_BACK} */
 layout(location = 0) out vec4 outColor;
 
 void main()
 {
-    vec3 color = texelFetch({RT_BACK}, ivec2(gl_FragCoord.xy), 0).rgb;
+    vec3 color = texelFetch({{RT_BACK}}, ivec2(gl_FragCoord.xy), 0).rgb;
     outColor.rgb = color;
-    //outColor.rgb = texture({RT_BACK}, texcoord).rgb;
+    //outColor.rgb = texture({{RT_BACK}}, texcoord).rgb;
     float w = 4.0 / viewWidth;
     float h = 4.0 / viewHeight;
 
@@ -33,22 +33,22 @@ void main()
     
     vec3 bloomSum = vec3(0);
 
-    int mips = textureQueryLevels({RT_BACK});
+    int mips = textureQueryLevels({{RT_BACK}});
     for(int i = 2; i < mips - 1; i++)
     {
         vec3 bloom = vec3(0);
 
-        bloom += textureLod({RT_BACK}, texcoord + dither + vec2(-w, h), i).rgb * 0.1;
-        bloom += textureLod({RT_BACK}, texcoord + dither + vec2(0, h), i).rgb * 0.2;
-        bloom += textureLod({RT_BACK}, texcoord + dither + vec2(w, h), i).rgb * 0.1;
+        bloom += textureLod({{RT_BACK}}, texcoord + dither + vec2(-w, h), i).rgb * 0.1;
+        bloom += textureLod({{RT_BACK}}, texcoord + dither + vec2(0, h), i).rgb * 0.2;
+        bloom += textureLod({{RT_BACK}}, texcoord + dither + vec2(w, h), i).rgb * 0.1;
 
-        bloom += textureLod({RT_BACK}, texcoord + dither + vec2(-w, 0), i).rgb * 0.2;
-        bloom += textureLod({RT_BACK}, texcoord + dither + vec2(0, 0), i).rgb * 0.2;
-        bloom += textureLod({RT_BACK}, texcoord + dither + vec2(w, 0), i).rgb * 0.2;
+        bloom += textureLod({{RT_BACK}}, texcoord + dither + vec2(-w, 0), i).rgb * 0.2;
+        bloom += textureLod({{RT_BACK}}, texcoord + dither + vec2(0, 0), i).rgb * 0.2;
+        bloom += textureLod({{RT_BACK}}, texcoord + dither + vec2(w, 0), i).rgb * 0.2;
 
-        bloom += textureLod({RT_BACK}, texcoord + dither + vec2(-w, -h), i).rgb * 0.1;
-        bloom += textureLod({RT_BACK}, texcoord + dither + vec2(0, -h), i).rgb * 0.2;
-        bloom += textureLod({RT_BACK}, texcoord + dither + vec2(w, -h), i).rgb * 0.1;
+        bloom += textureLod({{RT_BACK}}, texcoord + dither + vec2(-w, -h), i).rgb * 0.1;
+        bloom += textureLod({{RT_BACK}}, texcoord + dither + vec2(0, -h), i).rgb * 0.2;
+        bloom += textureLod({{RT_BACK}}, texcoord + dither + vec2(w, -h), i).rgb * 0.1;
 
         bloomSum += bloom * intensity;
 
@@ -58,7 +58,7 @@ void main()
         intensity *= 0.97;
         //intensity -= 0.05;
 
-        //bloom += textureLod({RT_BACK}, texcoord + vec2(0, 0), i).rgb * 1.6;
+        //bloom += textureLod({{RT_BACK}}, texcoord + vec2(0, 0), i).rgb * 1.6;
     }
     bloomSum /= float(mips - 3);
 
