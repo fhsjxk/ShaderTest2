@@ -9,6 +9,8 @@ uniform sampler2D {RT_BACK};
 uniform float viewWidth;
 uniform float viewHeight;
 
+uniform float frameTimeCounter;
+
 in vec2 texcoord;
 
 // LOCAL SETTINGS
@@ -27,7 +29,7 @@ void main()
 
     float intensity = 1.0;
 
-    vec2 dither = (texture(noisetex, texcoord * 10.0).rg - 0.5) * 0.002;
+    vec2 dither = (texture(noisetex, texcoord * vec2(viewWidth, viewHeight) / 128.0).rg - 0.5) * 0.005;
     
     vec3 bloomSum = vec3(0);
 
@@ -60,7 +62,7 @@ void main()
     }
     bloomSum /= float(mips - 3);
 
-    outColor.rgb = mix(color, bloomSum, 0.25);
+    outColor.rgb = mix(color, bloomSum, 0.2);
 }
 #endif
 
