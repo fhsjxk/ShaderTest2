@@ -132,6 +132,7 @@ void main() {
 	if (depth == 1.0)
   {
     color.rgb = texture({{RT_SKYVIEW}}, texcoord).rgb;
+    color.rgb += float(dot(normalize(viewRay), sunDirection) > 0.9999) * 500.0;
 		return;
 	}
 

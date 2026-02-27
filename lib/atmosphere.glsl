@@ -27,7 +27,7 @@ const vec4 AEROSOL_ABS_BASE     = vec4(0.8e-22);
 const vec4 AEROSOL_SCAT_BASE    = vec4(1.5e-22);
 
 const float AEROSOL_HEIGHT_SCALE = 1.5;
-const float AEROSOL_TURBIDITY    = 0.3;
+const float AEROSOL_TURBIDITY    = 1.0;
 const float AEROSOL_BASE_DENSITY = 1.37e20;
 
 const vec4 GROUND_ALBEDO         = vec4(0.3);
@@ -60,7 +60,7 @@ float hgPhase(float cosTheta, float g)
 
 float aerosolPhase(float cosTheta)
 {
-    return mix(hgPhase(cosTheta, 0.7), hgPhase(cosTheta, 0.97), 0.05);
+    return mix(hgPhase(cosTheta, 0.6), hgPhase(cosTheta, 0.97), 0.05);
 }
 
 float rayleighPhase(float cosTheta)
@@ -111,8 +111,8 @@ vec4 multiScatteringIsotropic(float cosTheta, float normalizedAlt, float r)
 
 vec4 multiScatteringAnisotropic(float cosTheta, float h)
 {
-    float phase = mix(hgPhase(cosTheta, 0.6), hgPhase(cosTheta, 0.97), 0.03);
-    return RAYLEIGH_SCAT_BASE * phase * AEROSOL_TURBIDITY * AEROSOL_BASE_DENSITY * exp(-h / AEROSOL_HEIGHT_SCALE) * 2e-18;
+    float phase = mix(hgPhase(cosTheta, 0.6), hgPhase(cosTheta, 0.97), 0.02);
+    return RAYLEIGH_SCAT_BASE * phase * AEROSOL_TURBIDITY * AEROSOL_BASE_DENSITY * exp(-h / AEROSOL_HEIGHT_SCALE) * 5e-19;
 }
 
 vec4 computeTransmittance(vec3 origin, vec3 rayDir)
@@ -157,7 +157,9 @@ vec4 computeTransmittanceLUT(vec2 uv)
 vec4 computeInscattering(vec3 rayDir)
 {
     vec3 rayOrigin = vec3(0.0, 0.0, PLANET_RADIUS + 0.1 + 0.01);
-    vec3 sunDir    = sunDirection;
+    vec3 sunDir    = sunDirection.xzy;
+
+    //sunDir.y = 1.0 - sunDir.y;
 
     float cosTheta = dot(rayDir, sunDir);
 
@@ -224,12 +226,12 @@ vec4 computeInscattering(vec3 rayDir)
 
 const mat4x3 M = mat4x3(
     137.672389239975, -8.632904716299537, -1.7181567391931372,
-    32.549094028629234, 86.73311346339795, -12.005406444382531,
-    -38.91428392614275, 33.28715507325721, 29.89044807197628,
-    8.572844237945445, -11.658553893057355, 117.47585277566478
+    32.549094028629234, 91.29801417199785, -12.005406444382531,
+    -38.91428392614275, 34.31665471469816, 29.89044807197628,
+    8.572844237945445, -11.103384660054624, 117.47585277566478
 );
 
 vec3 RgbFromSpectral(vec4 L)
 {
-    return M * L * 0.06;
+    return M * L * 0.04;
 }
