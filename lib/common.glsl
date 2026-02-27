@@ -1,3 +1,7 @@
+#ifndef COMMON
+
+#define COMMON
+
 #define PI 3.141592653589793
 
 {{GLOBAL_SETTINGS}}
@@ -45,3 +49,5 @@ float RoughnessToExponent(float roughness)
     float r = max(roughness, 0.001);
     return 2.0 / (r * r) - 2.0;
 }
+
+#endif

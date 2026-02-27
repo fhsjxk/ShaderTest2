@@ -1,3 +1,7 @@
+#ifndef COMMON
+
+#define COMMON
+
 // LIGHTING
 #define SPECULAR
 #define SPECULAR_GGX
@@ -11,3 +15,5 @@
 // DEBUG
 
 //#define DEBUG_VIEW
+
+#endif

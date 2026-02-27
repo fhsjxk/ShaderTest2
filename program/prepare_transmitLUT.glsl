@@ -1,25 +1,25 @@
 // {{SHADER_FRAG}}
 #ifdef {{SHADER_FRAG}}
+#include "/lib/atmosphere.glsl"
 
-/* RENDERTARGETS: 0 */
+in vec2 texcoord;
+
+/* RENDERTARGETS: {RT_TRANSMIT_LUT} */
 layout(location = 0) out vec4 outColor;
 
 void main()
 {
-    ivec2 pixelPosition = ivec2(gl_FragCoord.xy - vec2(0.5));
-
-    //if pixelPosition == ivec2(0, 0)
-    //{
-//
-    //}
-
+    outColor = computeTransmittanceLUT(texcoord);
 }
 #endif
 
 // {{SHADER_VERT}}
 #ifdef {{SHADER_VERT}}
+out vec2 texcoord;
+
 void main()
 {
     gl_Position = ftransform();
+    texcoord = (gl_TextureMatrix[0] * gl_MultiTexCoord0).xy;
 }
 #endif

@@ -1,7 +1,6 @@
 // {{SHADER_FRAG}}
 #ifdef {{SHADER_FRAG}}
-#include "/lib/common.glsl"
-#include "/lib/options.glsl"
+#include "/lib/atmosphere.glsl"
 
 uniform sampler2D {{RT_BACK}};
 
@@ -22,8 +21,7 @@ void main()
   {
 		return;
 	}
-  float b = pow(smoothstep(0.1, 1.0, normalize(viewRay).y + 0.2), 0.1);
-  color.rgb = mix(vec3(0.5, 0.65, 0.9)*1.5, vec3(0.18, 0.4, 1.0)*0.3, vec3(pow(b,3.0))) * 0.6;
+  color.rgb = RgbFromSpectral(computeInscattering(normalize(viewRay.xzy)));
 }
 #endif
 
