@@ -103,6 +103,7 @@ SHADER_CONFIG["{{RT_FORMATS}}"] = "\n".join(rt_formats_lines)
 SHADER_CONFIG["{{RT_SIZE}}"] = "\n".join(rt_size_lines)
 
 SHADER_CONFIG.update({
+"{{SHADER_COMP}}": "SHADER_COMP",
 "{{SHADER_FRAG}}": "SHADER_FRAG",
 "{{SHADER_VERT}}": "SHADER_VERT",
 
@@ -215,17 +216,27 @@ for file_name in os.listdir(FOLDER_PROGRAM):
     else:
         file_name_final = file_name_base
 
-    path_fsh = os.path.join(FOLDER_SHADER, FOLDER_WORLD_0, f"{file_name_final}.fsh")
-    path_vsh = os.path.join(FOLDER_SHADER, FOLDER_WORLD_0, f"{file_name_final}.vsh")
+    if file_name.endswith("_cs.glsl"):
+        file_name_final = file_name_final.replace("_cs.glsl", ".glsl")
+        path_csh = os.path.join(FOLDER_SHADER, FOLDER_WORLD_0, f"{file_name_final}.csh")
 
-    content_fsh = generate_shader(SHADER_CONFIG["{{SHADER_FRAG}}"], file_name_base)
-    content_vsh = generate_shader(SHADER_CONFIG["{{SHADER_VERT}}"], file_name_base)
+        content_csh = generate_shader(SHADER_CONFIG["{{SHADER_COMP}}"], file_name_base)
 
-    with open(path_fsh, "w", encoding="utf-8") as f:
-        f.write(content_fsh)
-    
-    with open(path_vsh, "w", encoding="utf-8") as f:
-        f.write(content_vsh)
+        #with open(path_csh, "w", encoding="utf-8") as f:
+            #f.write(content_csh)
+
+    else:
+        path_fsh = os.path.join(FOLDER_SHADER, FOLDER_WORLD_0, f"{file_name_final}.fsh")
+        path_vsh = os.path.join(FOLDER_SHADER, FOLDER_WORLD_0, f"{file_name_final}.vsh")
+
+        content_fsh = generate_shader(SHADER_CONFIG["{{SHADER_FRAG}}"], file_name_base)
+        content_vsh = generate_shader(SHADER_CONFIG["{{SHADER_VERT}}"], file_name_base)
+
+        with open(path_fsh, "w", encoding="utf-8") as f:
+            f.write(content_fsh)
+
+        with open(path_vsh, "w", encoding="utf-8") as f:
+            f.write(content_vsh)
 
 for file_name in os.listdir("./"):
     if file_name in FILE_IGNORE:

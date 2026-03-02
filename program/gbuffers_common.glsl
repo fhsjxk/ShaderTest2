@@ -88,6 +88,10 @@ out float sunLighting;
 
 void main()
 {
+    #if defined GBUFFER_WEATHER || defined GBUFFER_WATER || defined GBUFFER_HAND_WATER || defined GBUFFER_ENTITIES_TRANSLUCENT || defined GBUFFER_SKYBASIC || defined GBUFFER_SKYTEXTURED
+    return;
+    #endif
+
     gl_Position = ftransform();
 
     texcoord = (gl_TextureMatrix[0] * gl_MultiTexCoord0).xy;
