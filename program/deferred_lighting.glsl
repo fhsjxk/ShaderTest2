@@ -132,7 +132,7 @@ void main() {
 	if (depth == 1.0)
   {
     color.rgb = texture({{RT_SKYVIEW}}, texcoord).rgb;
-    color.rgb += float(dot(normalize(viewRay), normalize(sunDirection)) > 0.9999) * 1000.0;
+    color.rgb += float(dot(normalize(viewRay), normalize(sunDirection)) > 0.9999) * 100.0;
 		return;
 	}
 
@@ -178,7 +178,7 @@ void main() {
   vec3 ambientLight = ambientAmount * lighting0.g * lighting0.b * skyColor;
 
   vec3 localLightColor = vec3(1.0, 0.6, 0.2);
-  vec3 localLight = pow(lighting0.r, 3.0) * localLightColor * 5.0;
+  vec3 localLight = pow(lighting0.r, 3.0) * localLightColor * 3.0;
 
   const float masterGain = 0.6;
   color.rgb = baseAlbedo * (diffuseSun + ambientLight + localLight) * masterGain; // Temp

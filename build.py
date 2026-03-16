@@ -70,6 +70,11 @@ RT_DEFS = [
         "format": "RGBA16F",
         "size": "0.125 0.125",
     },
+#    {
+#        "name": "RT_SKY_TEST",
+#        "format": "RGB32F",
+#        "size": "4096 2048",
+#    },
 ]
 
 # RT_LIGHTING_LUT:
@@ -117,6 +122,7 @@ PREPARE_INDEX = [
 ]
 
 COMPOSITE_INDEX = [
+#"skytest",
 "lightingLUT",
 "exposure",
 "bloom",

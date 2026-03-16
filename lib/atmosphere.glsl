@@ -9,6 +9,7 @@ const float INV_4PI = 0.25 * INV_PI;
 uniform sampler2D {{RT_TRANSMIT_LUT}};
 
 uniform vec3 sunDirection;
+uniform float eyeAltitude;
 
 const int TRANSMITTANCE_STEPS   = 32;
 const int INSCATTERING_STEPS    = 32;
@@ -23,7 +24,7 @@ const vec4 RAYLEIGH_SCAT_BASE   = vec4(6.605e-3, 1.067e-2, 1.842e-2, 3.156e-2);
 
 const vec4 OZONE_ABS_BASE       = vec4(3.472e-21, 3.914e-21, 1.349e-21, 11.03e-23) * 1e-4f;
 
-const vec4 AEROSOL_ABS_BASE     = vec4(2.0e-22);
+const vec4 AEROSOL_ABS_BASE     = vec4(1.0e-22);
 const vec4 AEROSOL_SCAT_BASE    = vec4(1.5e-22);
 
 const float AEROSOL_HEIGHT_SCALE = 1.2;
@@ -60,6 +61,8 @@ float hgPhase(float cosTheta, float g)
 
 float aerosolPhase(float cosTheta)
 {
+    return mix(hgPhase(cosTheta, 0.65), hgPhase(cosTheta, 0.95), 0.1);
+    return mix(hgPhase(cosTheta, 0.55),mix(hgPhase(cosTheta, 0.8), hgPhase(cosTheta, 0.95), 0.15), 0.4);
     return mix(hgPhase(cosTheta, 0.45),mix(hgPhase(cosTheta, 0.75), hgPhase(cosTheta, 0.95), 0.15), 0.4);
 }
 
@@ -111,7 +114,8 @@ vec4 multiScatteringIsotropic(float cosTheta, float normalizedAlt, float r)
 
 vec4 multiScatteringAnisotropic(float cosTheta, float h)
 {
-    float phase = mix(hgPhase(cosTheta, 0.45),mix(hgPhase(cosTheta, 0.75), hgPhase(cosTheta, 0.95), 0.02), 0.3);
+    //float phase = mix(hgPhase(cosTheta, 0.45),mix(hgPhase(cosTheta, 0.75), hgPhase(cosTheta, 0.95), 0.02), 0.3);
+    float phase = mix(hgPhase(cosTheta, 0.65), hgPhase(cosTheta, 0.95), 0.02);
     return RAYLEIGH_SCAT_BASE * phase * AEROSOL_TURBIDITY * AEROSOL_BASE_DENSITY * exp(-h / AEROSOL_HEIGHT_SCALE) * 2e-19;
 }
 
@@ -156,7 +160,7 @@ vec4 computeTransmittanceLUT(vec2 uv)
 
 vec4 computeInscattering(vec3 rayDir)
 {
-    vec3 rayOrigin = vec3(0.0, 0.0, PLANET_RADIUS + 0.1 + 0.01);
+    vec3 rayOrigin = vec3(0.0, 0.0, PLANET_RADIUS + max((eyeAltitude - 64.0) * 0.05, 0.01));
     vec3 sunDir    = normalize(sunDirection.xzy);
 
     //sunDir.y = 1.0 - sunDir.y;
@@ -221,6 +225,9 @@ vec4 computeInscattering(vec3 rayDir)
         T *= stepT;
     }
 
+    float sun = float(cosTheta > 0.99999) * 15000.0;
+    //L += T * SUN_RADIANCE * sun;
+
     return L;
 }
 
@@ -233,5 +240,5 @@ const mat4x3 M = mat4x3(
 
 vec3 RgbFromSpectral(vec4 L)
 {
-    return M * L * 0.03;
+    return M * L * 0.04;
 }
