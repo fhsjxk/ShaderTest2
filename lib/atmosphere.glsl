@@ -28,7 +28,7 @@ const vec4 AEROSOL_ABS_BASE     = vec4(1.0e-22);
 const vec4 AEROSOL_SCAT_BASE    = vec4(1.5e-22);
 
 const float AEROSOL_HEIGHT_SCALE = 1.2;
-const float AEROSOL_TURBIDITY    = 1.0;
+const float AEROSOL_TURBIDITY    = 0.7;
 const float AEROSOL_BASE_DENSITY = 1.37e20;
 
 const vec4 GROUND_ALBEDO         = vec4(0.3);
@@ -61,7 +61,7 @@ float hgPhase(float cosTheta, float g)
 
 float aerosolPhase(float cosTheta)
 {
-    return mix(hgPhase(cosTheta, 0.65), hgPhase(cosTheta, 0.95), 0.1);
+    return mix(hgPhase(cosTheta, 0.65), hgPhase(cosTheta, 0.95), 0.05);
     return mix(hgPhase(cosTheta, 0.55),mix(hgPhase(cosTheta, 0.8), hgPhase(cosTheta, 0.95), 0.15), 0.4);
     return mix(hgPhase(cosTheta, 0.45),mix(hgPhase(cosTheta, 0.75), hgPhase(cosTheta, 0.95), 0.15), 0.4);
 }
@@ -90,6 +90,7 @@ void getAtmCoefficients(float h,
     float t = log(h + 1e-4) - 3.22261;
     float ozoneDensity = 3.78547397e20 / (h + 1e-4) * exp(-t * t * 5.55555555);
     molecularAbs = OZONE_ABS_BASE * 300.0 * ozoneDensity;
+    molecularAbs += 1e-2 * exp(-0.07771971 * pow(h + 1.0, 1.16364243));
 
     extinction = aerosolAbs + aerosolScat + molecularAbs + molecularScat;
 }
@@ -116,7 +117,7 @@ vec4 multiScatteringAnisotropic(float cosTheta, float h)
 {
     //float phase = mix(hgPhase(cosTheta, 0.45),mix(hgPhase(cosTheta, 0.75), hgPhase(cosTheta, 0.95), 0.02), 0.3);
     float phase = mix(hgPhase(cosTheta, 0.65), hgPhase(cosTheta, 0.95), 0.02);
-    return RAYLEIGH_SCAT_BASE * phase * AEROSOL_TURBIDITY * AEROSOL_BASE_DENSITY * exp(-h / AEROSOL_HEIGHT_SCALE) * 2e-19;
+    return RAYLEIGH_SCAT_BASE * phase * AEROSOL_TURBIDITY * AEROSOL_BASE_DENSITY * exp(-h / AEROSOL_HEIGHT_SCALE) * 3e-19;
 }
 
 vec4 computeTransmittance(vec3 origin, vec3 rayDir)
@@ -240,5 +241,5 @@ const mat4x3 M = mat4x3(
 
 vec3 RgbFromSpectral(vec4 L)
 {
-    return M * L * 0.04;
+    return M * L * 0.05;
 }
