@@ -56,6 +56,11 @@ RT_DEFS = [
         "size": "256 64",
     },
     {
+        "name": "RT_ATMOSPHERE_LUT",
+        "format": "RGBA16F",
+        "size": "128 32",
+    },
+    {
         "name": "RT_SKYVIEW_LUT",
         "format": "RGBA16F",
         "size": "64 64",
@@ -118,7 +123,8 @@ SHADER_CONFIG.update({
 PREPARE_INDEX = [
 "sky",
 "lightingLUT",
-"transmitLUT"
+"transmitLUT",
+"atmosphereLUT"
 ]
 
 COMPOSITE_INDEX = [

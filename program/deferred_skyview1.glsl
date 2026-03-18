@@ -4,6 +4,8 @@
 
 uniform sampler2D {{RT_BACK}};
 
+uniform float eyeAltitude;
+
 in vec2 texcoord;
 in vec3 viewRay;
 
@@ -21,7 +23,7 @@ void main()
   {
 		return;
 	}
-  color.rgb = RgbFromSpectral(computeInscattering(normalize(viewRay.xzy)));
+  color.rgb = RgbFromSpectral(computeInscattering(normalize(viewRay.xzy), max((eyeAltitude - 64.0) * 0.05, 0.01)));
 }
 #endif
 

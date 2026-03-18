@@ -7,9 +7,9 @@ const float INV_PI = 0.31830988618379067154;
 const float INV_4PI = 0.25 * INV_PI;
 
 uniform sampler2D {{RT_TRANSMIT_LUT}};
+uniform sampler2D {{RT_ATMOSPHERE_LUT}};
 
 uniform vec3 sunDirection;
-uniform float eyeAltitude;
 
 const int TRANSMITTANCE_STEPS   = 32;
 const int INSCATTERING_STEPS    = 32;
@@ -20,7 +20,7 @@ const float ATM_RADIUS          = PLANET_RADIUS + ATM_THICKNESS;
 
 const vec4 SUN_RADIANCE         = vec4(1.68, 1.83, 1.99, 1.31);
 
-const vec4 RAYLEIGH_SCAT_BASE   = vec4(6.605e-3, 1.067e-2, 1.842e-2, 3.156e-2) * 1.5;
+const vec4 RAYLEIGH_SCAT_BASE   = vec4(6.605e-3, 1.067e-2, 1.842e-2, 3.156e-2) * 1.2;
 
 const vec4 OZONE_ABS_BASE       = vec4(3.472e-21, 3.914e-21, 1.349e-21, 11.03e-23) * 1e-4f;
 
@@ -28,7 +28,7 @@ const vec4 AEROSOL_ABS_BASE     = vec4(1.0e-22);
 const vec4 AEROSOL_SCAT_BASE    = vec4(1.5e-22);
 
 const float AEROSOL_HEIGHT_SCALE = 1.2;
-const float AEROSOL_TURBIDITY    = 1.2;
+const float AEROSOL_TURBIDITY    = 1.5;
 const float AEROSOL_BASE_DENSITY = 1.37e20;
 
 const vec4 GROUND_ALBEDO         = vec4(0.3);
@@ -38,6 +38,13 @@ vec4 transmittanceFromLUT(float cosTheta, float normalizedAlt)
     vec2 uv = vec2(clamp(cosTheta * 0.5 + 0.5, 0.0, 1.0),
                    clamp(normalizedAlt,      0.0, 1.0));
     return texture({{RT_TRANSMIT_LUT}}, uv).rgba;
+}
+
+vec4 atmosphereFromLUT(float normalizedAlt)
+{
+    vec2 uv = vec2(0.36,
+                   clamp(normalizedAlt,      0.0, 1.0));
+    return texture({{RT_ATMOSPHERE_LUT}}, uv).rgba;
 }
 
 float raySphereIntersect(vec3 origin, vec3 dir, float radius)
@@ -115,9 +122,11 @@ vec4 multiScatteringIsotropic(float cosTheta, float normalizedAlt, float r)
 
 vec4 multiScatteringAnisotropic(float cosTheta, float h)
 {
+    //return vec4(0);
     //float phase = mix(hgPhase(cosTheta, 0.45),mix(hgPhase(cosTheta, 0.75), hgPhase(cosTheta, 0.95), 0.02), 0.3);
     float phase = mix(hgPhase(cosTheta, 0.6), hgPhase(cosTheta, 0.95), 0.03);
-    return RAYLEIGH_SCAT_BASE * phase * AEROSOL_TURBIDITY * AEROSOL_BASE_DENSITY * exp(-h / AEROSOL_HEIGHT_SCALE) * 2e-19;
+    vec4 molecularScat = atmosphereFromLUT(h / ATM_THICKNESS);
+    return molecularScat * phase * AEROSOL_TURBIDITY * AEROSOL_BASE_DENSITY * exp(-h / AEROSOL_HEIGHT_SCALE) * 2e-19;
 }
 
 vec4 computeTransmittance(vec3 origin, vec3 rayDir)
@@ -158,10 +167,9 @@ vec4 computeTransmittanceLUT(vec2 uv)
     return computeTransmittance(origin, rayDir);
 }
 
-
-vec4 computeInscattering(vec3 rayDir)
+vec4 computeInscattering(vec3 rayDir, float altitude)
 {
-    vec3 rayOrigin = vec3(0.0, 0.0, PLANET_RADIUS + max((eyeAltitude - 64.0) * 0.05, 0.01));
+    vec3 rayOrigin = vec3(0.0, 0.0, PLANET_RADIUS + altitude);
     vec3 sunDir    = normalize(sunDirection.xzy);
 
     //sunDir.y = 1.0 - sunDir.y;
@@ -232,6 +240,16 @@ vec4 computeInscattering(vec3 rayDir)
     return L;
 }
 
+vec4 computeAtmosphereLUT(vec2 uv)
+{
+    float cosTheta = uv.x * 2.0 - 1.0;
+    vec3 rayDir = vec3(sqrt(max(0.0, 1.0 - cosTheta * cosTheta)),0.0,cosTheta);
+
+    float r = mix(0.0, ATM_THICKNESS, uv.y);
+
+    return computeInscattering(rayDir, r);
+}
+
 const mat4x3 M = mat4x3(
     137.672389239975, -8.632904716299537, -1.7181567391931372,
     32.549094028629234, 91.29801417199785, -12.005406444382531,
@@ -241,5 +259,5 @@ const mat4x3 M = mat4x3(
 
 vec3 RgbFromSpectral(vec4 L)
 {
-    return M * L * 0.15;
+    return M * L * 0.035;
 }
