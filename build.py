@@ -225,13 +225,13 @@ for file_name in os.listdir(FOLDER_PROGRAM):
         file_type = None
 
     if file_name.startswith("prepare"):
-        file_index = PREPARE_INDEX.index(file_type)+1
+        file_index = PREPARE_INDEX.index(file_type) + 1
         file_name_final = f"prepare{file_index}"
     elif file_name.startswith("composite"):
-        file_index = COMPOSITE_INDEX.index(file_type)+1
+        file_index = COMPOSITE_INDEX.index(file_type) + 1
         file_name_final = f"composite{file_index}"
     elif file_name.startswith("deferred"):
-        file_index = DEFERRED_INDEX.index(file_type)+1
+        file_index = DEFERRED_INDEX.index(file_type) + 1
         file_name_final = f"deferred{file_index}"
     else:
         file_name_final = file_name_base
