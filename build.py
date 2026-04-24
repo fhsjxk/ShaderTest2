@@ -21,56 +21,56 @@ GBUFFER_PROGRAMS = ["basic"]
 #GBUFFER_PROGRAMS = ["basic", "line", "textured", "textured_lit", "skybasic", "skytextured", "clouds", "terrain", "damagedblock", "block", "beaconbeam", "entities", "armor_glint", "spidereyes", "hand", "weather", "water", "hand_water"]
 
 RT_DEFS = [
-    {
+    { # 0
         "name": "RT_BACK",
         "format": "R11F_G11F_B10F",
     },
-    {
+    { # 1
         "name": "RT_BASE_COLOR", # RGB:BaseColor A:Unused
         "format": "RGBA8",
     },
-    {
+    { # 2
         "name": "RT_NORMAL", # RGB:Normal A:SunLight
         "format": "RGBA8",
     },
-    {
+    { # 3
         "name": "RT_SPECULAR",
         "format": "RGBA8",
     },
-    {
+    { # 4
         "name": "RT_LIGHTING0", # RG:LightLevel B:AO
         "format": "R11F_G11F_B10F",
     },
-    {
+    { # 5
         "name": "RT_LIGHTING1", # Unused
         "format": "RGBA8",
     },
-    {
+    { # 6
         "name": "RT_LIGHTING_LUT",
         "format": "RGBA16F",
         "size": "32 2",
     },
-    {
+    { # 7
         "name": "RT_TRANSMIT_LUT",
         "format": "RGBA8",
         "size": "256 64",
     },
-    {
+    { # 8
         "name": "RT_ATMOSPHERE_LUT",
         "format": "RGBA16F",
         "size": "128 32",
     },
-    {
+    { # 9
         "name": "RT_SKYVIEW_LUT",
         "format": "RGBA16F",
         "size": "64 64",
     },
-    {
+    { # 10
         "name": "RT_FROXEL",
         "format": "RGBA16F",
         "size": "32 1024",
     },
-    {
+    { # 11
         "name": "RT_SKYVIEW",
         "format": "RGBA16F",
         "size": "0.125 0.125",

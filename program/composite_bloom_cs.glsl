@@ -65,7 +65,7 @@ void main()
         bloom *= highPass / max(luma, 1e-4);
 
         float mipWeight = exp(-0.42 * float(i - 2));
-        bloomAccum += bloom * mipWeight;
+        bloomAccum += bloom;
         bloomWeightAccum += mipWeight;
     }
 
