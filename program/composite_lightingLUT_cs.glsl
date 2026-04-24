@@ -14,7 +14,7 @@ const ivec3 workGroups = ivec3(1, 1, 1);
 
 void main()
 {
-    const int level = textureQueryLevels({{RT_BACK}}) - 2;
+    int level = max(textureQueryLevels({{RT_BACK}}) - 2, 0);
     float prevValue = texelFetch({{RT_LIGHTING_LUT}}, ivec2({{POS_LIGHTING_LUT_VALUE}}), 0).r;
     float currentValue = getBrightness(textureLod({{RT_BACK}}, vec2(0.5), level).rgb);
     float nextValue = mix(prevValue, pow(currentValue, 0.7), frameTime * 1.5);

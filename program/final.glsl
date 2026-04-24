@@ -37,7 +37,7 @@ void main()
     //color.rgb = pow(aces(texelFetch({{RT_BACK}}, pixelCoord, 0).rgb / mix(value, 1.0, 0.03) / 2.0), vec3(1.0/2.2));
     color.rgb = pow(aces(texelFetch({{RT_BACK}}, pixelCoord, 0).rgb), vec3(1.0/2.2));
     //color.rgb = texture({{RT_BACK}}, texcoord).rgb;
-    #ifdef VIGNETTE_AMOUNT != 0.0
+    #if defined VIGNETTE_AMOUNT && VIGNETTE_AMOUNT != 0.0
     float vignetteMask = texture(vignettetex, texcoord).r * VIGNETTE_AMOUNT + (1.0 - VIGNETTE_AMOUNT);
     color.rgb *= vignetteMask;
     #endif

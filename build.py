@@ -2,7 +2,7 @@ import os
 import shutil
 import re
 
-VERSION_HEADER = "#version 450 compatibility"
+VERSION_HEADER = "#version 460 compatibility"
 
 FOLDER_SHADER = "E:/Minecraft/.minecraft/versions/1.21.11-Fabric/shaderpacks/ShaderTest2/shaders/"
 
@@ -15,7 +15,7 @@ FILE_IGNORE = ["global_settings.glsl", ".gitignore", "build_and_watch_iris_log.p
 
 GBUFFER_COMMON_FILE = "gbuffers_common.glsl"
 
-GBUFFER_PROGRAMS = ["basic"]
+GBUFFER_PROGRAMS = ["basic", "textured", "textured_lit", "terrain", "block", "entities", "hand", "weather", "water", "hand_water"]
 #GBUFFER_PROGRAMS = ["basic", "entities","weather", "water", "hand_water", "skybasic", "skytextured"]
 #GBUFFER_PROGRAMS = ["basic", "terrain", "block", "entities", "hand"]
 #GBUFFER_PROGRAMS = ["basic", "line", "textured", "textured_lit", "skybasic", "skytextured", "clouds", "terrain", "damagedblock", "block", "beaconbeam", "entities", "armor_glint", "spidereyes", "hand", "weather", "water", "hand_water"]
@@ -131,6 +131,7 @@ PREPARE_INDEX = [
 
 COMPOSITE_INDEX = [
 #"skytest",
+"premip",
 "lightingLUT",
 "exposure",
 "bloommip",
@@ -140,8 +141,7 @@ COMPOSITE_INDEX = [
 ]
 
 DEFERRED_INDEX = [
-"skyview0",
-"skyview1",
+"skyview",
 "lighting"
 ]
 

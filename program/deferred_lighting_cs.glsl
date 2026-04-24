@@ -101,10 +101,12 @@ void main() {
 
     vec2 uv = (vec2(pixelCoord) + 0.5) / vec2(viewWidth, viewHeight);
     float depth = texelFetch(depthtex0, pixelCoord, 0).r;
+    vec2 clipXY = uv * 2.0 - 1.0;
+    vec3 viewRay = mat3(gbufferModelViewInverse) * (gbufferProjectionInverse * vec4(clipXY, 1.0, 1.0)).xyz;
 
     if (depth == 1.0) {
         vec3 sky = texture({{RT_SKYVIEW}}, uv).rgb;
-        sky += float(dot(normalize(vec3(uv * 2.0 - 1.0, 1.0)), normalize(sunDirection)) > 0.9999) * 100.0;
+        sky += float(dot(normalize(viewRay), normalize(sunDirection)) > 0.9999) * 100.0;
         imageStore({{RT_BACK_IMG}}, pixelCoord, vec4(sky, 1.0));
         return;
     }
@@ -113,7 +115,7 @@ void main() {
     vec4 normal = texelFetch({{RT_NORMAL}}, pixelCoord, 0);
     vec4 lighting0 = texelFetch({{RT_LIGHTING0}}, pixelCoord, 0);
 
-    vec3 NDCPos = vec3(uv, depth) * 2.0 - 1.0;
+    vec3 NDCPos = vec3(clipXY, depth * 2.0 - 1.0);
     vec3 viewPos = projectAndDivide(gbufferProjectionInverse, NDCPos);
     vec3 feetPlayerPos = (gbufferModelViewInverse * vec4(viewPos, 1.0)).xyz;
     vec3 shadowViewPos = (shadowModelView * vec4(feetPlayerPos, 1.0)).xyz;
