@@ -20,7 +20,7 @@ const float ATM_RADIUS          = PLANET_RADIUS + ATM_THICKNESS;
 
 const vec4 SUN_RADIANCE         = vec4(1.68, 1.83, 1.99, 1.31);
 
-const vec4 RAYLEIGH_SCAT_BASE   = vec4(6.605e-3, 1.067e-2, 1.842e-2, 3.156e-2) * 1.2;
+const vec4 RAYLEIGH_SCAT_BASE   = vec4(6.605e-3, 1.067e-2, 1.842e-2, 3.156e-2);// * 1.2;
 
 const vec4 OZONE_ABS_BASE       = vec4(3.472e-21, 3.914e-21, 1.349e-21, 11.03e-23) * 1e-4f;
 
@@ -28,7 +28,7 @@ const vec4 AEROSOL_ABS_BASE     = vec4(1.0e-22);
 const vec4 AEROSOL_SCAT_BASE    = vec4(1.5e-22);
 
 const float AEROSOL_HEIGHT_SCALE = 1.2;
-const float AEROSOL_TURBIDITY    = 1.5;
+const float AEROSOL_TURBIDITY    = 1.0;
 const float AEROSOL_BASE_DENSITY = 1.37e20;
 
 const vec4 GROUND_ALBEDO         = vec4(0.3);
@@ -126,7 +126,7 @@ vec4 multiScatteringAnisotropic(float cosTheta, float h)
     //float phase = mix(hgPhase(cosTheta, 0.45),mix(hgPhase(cosTheta, 0.75), hgPhase(cosTheta, 0.95), 0.02), 0.3);
     float phase = mix(hgPhase(cosTheta, 0.6), hgPhase(cosTheta, 0.95), 0.03);
     vec4 molecularScat = atmosphereFromLUT(h / ATM_THICKNESS);
-    return molecularScat * phase * AEROSOL_TURBIDITY * AEROSOL_BASE_DENSITY * exp(-h / AEROSOL_HEIGHT_SCALE) * 2e-19;
+    return 1 * molecularScat * phase * AEROSOL_TURBIDITY * AEROSOL_BASE_DENSITY * exp(-h / AEROSOL_HEIGHT_SCALE) * 1.5e-19;
 }
 
 vec4 computeTransmittance(vec3 origin, vec3 rayDir)
@@ -259,5 +259,5 @@ const mat4x3 M = mat4x3(
 
 vec3 RgbFromSpectral(vec4 L)
 {
-    return M * L * 0.035;
+    return M * L * 0.04;
 }

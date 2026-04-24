@@ -11,7 +11,7 @@ FOLDER_LIB = "lib"
 FOLDER_PROGRAM = "program"
 FOLDER_WORLD_0 = "world0"
 
-FILE_IGNORE = ["global_settings.glsl", ".gitignore"]
+FILE_IGNORE = ["global_settings.glsl", ".gitignore", "build_and_watch_iris_log.ps1"]
 
 GBUFFER_COMMON_FILE = "gbuffers_common.glsl"
 
@@ -98,6 +98,8 @@ for index, rt in enumerate(RT_DEFS):
 
     SHADER_CONFIG[f"{{{name}}}"] = index
     SHADER_CONFIG[f"{{{{{name}}}}}"] = f"colortex{index}"
+    SHADER_CONFIG["{{" + name + "_IMG}}"] = f"colorimg{index}"
+    SHADER_CONFIG["{{" + name + "_FORMAT_IMG}}"] = format.lower()
 
     rt_formats_lines.append(
         f"const int colortex{index}Format = {format};"
@@ -131,6 +133,7 @@ COMPOSITE_INDEX = [
 #"skytest",
 "lightingLUT",
 "exposure",
+"bloommip",
 "bloom",
 "gamma",
 "last"
@@ -182,10 +185,15 @@ if(os.path.exists(FOLDER_SHADER)):
     shutil.rmtree(FOLDER_SHADER)
 
 os.makedirs(FOLDER_SHADER)
-shutil.copytree(FOLDER_TEXTURE, os.path.join(FOLDER_SHADER, FOLDER_TEXTURE))
 os.makedirs(FOLDER_SHADER + FOLDER_LIB)
 os.makedirs(FOLDER_SHADER + FOLDER_PROGRAM)
 os.makedirs(FOLDER_SHADER + FOLDER_WORLD_0)
+os.makedirs(FOLDER_SHADER + FOLDER_TEXTURE)
+
+for item in os.listdir(FOLDER_TEXTURE):
+    path = os.path.join(FOLDER_TEXTURE, item)
+    if os.path.isfile(path):
+        shutil.copy(path, os.path.join(FOLDER_SHADER, FOLDER_TEXTURE))
 
 for program in GBUFFER_PROGRAMS:
     base_name = f"gbuffers_{program}"
@@ -234,8 +242,8 @@ for file_name in os.listdir(FOLDER_PROGRAM):
 
         content_csh = generate_shader(SHADER_CONFIG["{{SHADER_COMP}}"], file_name_base)
 
-        #with open(path_csh, "w", encoding="utf-8") as f:
-            #f.write(content_csh)
+        with open(path_csh, "w", encoding="utf-8") as f:
+            f.write(content_csh)
 
     else:
         path_fsh = os.path.join(FOLDER_SHADER, FOLDER_WORLD_0, f"{file_name_final}.fsh")

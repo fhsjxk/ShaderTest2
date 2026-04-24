@@ -1,6 +1,6 @@
-#ifndef COMMON
+#ifndef OPTIONS
 
-#define COMMON
+#define OPTIONS
 
 // LIGHTING
 #define SPECULAR
@@ -11,6 +11,11 @@
 
 // POST
 #define VIGNETTE_AMOUNT 0.3 // [0.0 0.1 0.2 0.3 0.4 0.5 0.6 0.7 0.8 0.9 1.0]
+#define BLOOM_STRENGTH 1.0 // [0.00 0.05 0.10 0.15 0.20 0.22 0.25 0.30 0.35 0.40 0.50]
+#define BLOOM_THRESHOLD 0.5 // [0.50 0.75 1.00 1.25 1.50 2.00]
+#define BLOOM_KNEE 0.25 // [0.05 0.10 0.15 0.20 0.25 0.35 0.50]
+#define BLOOM_MAX_MIPS 6 // [3 4 5 6 7 8]
+#define BLOOM_DITHER 1.75 // [0.00 0.50 1.00 1.50 1.75 2.00]
 
 // DEBUG
 

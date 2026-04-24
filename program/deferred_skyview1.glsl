@@ -23,7 +23,7 @@ void main()
   {
 		return;
 	}
-  color.rgb = RgbFromSpectral(computeInscattering(normalize(viewRay.xzy), max((eyeAltitude - 64.0) * 0.05, 0.01)));
+  color.rgb = RgbFromSpectral(computeInscattering(normalize(viewRay.xzy), max((eyeAltitude - 64.0) * 0.01, 0.01)));
 }
 #endif
 
