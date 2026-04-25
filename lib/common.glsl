@@ -2,6 +2,8 @@
 
 #define COMMON
 
+//#define DEBUG_VIEW
+
 #define PI 3.141592653589793
 
 {{GLOBAL_SETTINGS}}

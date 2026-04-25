@@ -105,7 +105,7 @@ void main() {
 
     if (depth == 1.0) {
         vec3 sky = texture({{RT_SKYVIEW}}, uv).rgb;
-        sky += float(dot(normalize(viewRay), normalize(sunDirection)) > 0.9999) * 100.0;
+        sky += float(dot(normalize(viewRay), normalize(sunDirection)) > 0.9999) * 500.0;
         imageStore({{RT_BACK_IMG}}, pixelCoord, vec4(sky, 1.0));
         return;
     }

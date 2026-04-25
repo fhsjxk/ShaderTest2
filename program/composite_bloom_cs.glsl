@@ -14,23 +14,6 @@ layout(local_size_x = 8, local_size_y = 8, local_size_z = 1) in;
 
 const vec2 workGroupsRender = vec2(1.0, 1.0);
 
-vec3 sampleBloom9Tap(vec2 uv, vec2 texelStep, int mipLevel, vec2 jitter)
-{
-    vec3 bloom = vec3(0.0);
-    bloom += textureLod({{RT_BACK}}, uv + jitter + vec2(-texelStep.x, texelStep.y), mipLevel).rgb * 0.0625;
-    bloom += textureLod({{RT_BACK}}, uv + jitter + vec2(0.0, texelStep.y), mipLevel).rgb * 0.1250;
-    bloom += textureLod({{RT_BACK}}, uv + jitter + vec2(texelStep.x, texelStep.y), mipLevel).rgb * 0.0625;
-
-    bloom += textureLod({{RT_BACK}}, uv + jitter + vec2(-texelStep.x, 0.0), mipLevel).rgb * 0.1250;
-    bloom += textureLod({{RT_BACK}}, uv + jitter, mipLevel).rgb * 0.2500;
-    bloom += textureLod({{RT_BACK}}, uv + jitter + vec2(texelStep.x, 0.0), mipLevel).rgb * 0.1250;
-
-    bloom += textureLod({{RT_BACK}}, uv + jitter + vec2(-texelStep.x, -texelStep.y), mipLevel).rgb * 0.0625;
-    bloom += textureLod({{RT_BACK}}, uv + jitter + vec2(0.0, -texelStep.y), mipLevel).rgb * 0.1250;
-    bloom += textureLod({{RT_BACK}}, uv + jitter + vec2(texelStep.x, -texelStep.y), mipLevel).rgb * 0.0625;
-    return bloom;
-}
-
 void main()
 {
     ivec2 pixelCoord = ivec2(gl_GlobalInvocationID.xy);
@@ -40,38 +23,46 @@ void main()
     }
 
     vec2 uv = (vec2(pixelCoord) + 0.5) / vec2(viewWidth, viewHeight);
-    vec3 baseColor = texelFetch({{RT_BACK}}, pixelCoord, 0).rgb;
 
-    int mipCount = textureQueryLevels({{RT_BACK}});
-    vec3 bloomAccum = vec3(0.0);
-    float bloomWeightAccum = 0.0;
+    vec3 color = texelFetch({{RT_BACK}}, pixelCoord, 0).rgb;
+    
+    float w = 4.0 / viewWidth;
+    float h = 4.0 / viewHeight;
 
-    vec2 dither = (texture(noisetex, (vec2(pixelCoord) + 0.5) / 128.0).rg - 0.5) * BLOOM_DITHER;
-    float threshold = BLOOM_THRESHOLD;
-    float knee = max(BLOOM_KNEE, 1e-4);
-    int mipLimit = min(mipCount, 2 + BLOOM_MAX_MIPS);
+    float intensity = 1.0;
 
-    for (int i = 2; i < mipLimit; ++i) {
-        vec2 mipScale = exp2(vec2(i));
-        vec2 texelStep = 1.0 / max(vec2(1.0), vec2(viewWidth, viewHeight) / mipScale);
-        vec2 jitter = dither * texelStep;
+    vec2 dither = (texture(noisetex, uv * vec2(viewWidth, viewHeight) / 128.0).rg - 0.5) * 0.005;
+    
+    vec3 bloomSum = vec3(0);
 
-        vec3 bloom = sampleBloom9Tap(uv, texelStep, i, jitter);
+    int mips = textureQueryLevels({{RT_BACK}});
+    for(int i = 2; i < mips - 1; i++)
+    {
+        vec3 bloom = vec3(0);
 
-        float luma = dot(bloom, vec3(0.2126, 0.7152, 0.0722));
-        float soft = clamp((luma - threshold + knee) / (2.0 * knee), 0.0, 1.0);
-        float highPass = max(luma - threshold, 0.0) + soft * soft * knee;
-        bloom *= highPass / max(luma, 1e-4);
+        bloom += textureLod({{RT_BACK}}, uv + dither + vec2(-w, h), i).rgb * 0.1;
+        bloom += textureLod({{RT_BACK}}, uv + dither + vec2(0, h), i).rgb * 0.2;
+        bloom += textureLod({{RT_BACK}}, uv + dither + vec2(w, h), i).rgb * 0.1;
 
-        float mipWeight = exp(-0.42 * float(i - 2));
-        bloomAccum += bloom * mipWeight;
-        bloomWeightAccum += mipWeight;
+        bloom += textureLod({{RT_BACK}}, uv + dither + vec2(-w, 0), i).rgb * 0.2;
+        bloom += textureLod({{RT_BACK}}, uv + dither + vec2(0, 0), i).rgb * 0.2;
+        bloom += textureLod({{RT_BACK}}, uv + dither + vec2(w, 0), i).rgb * 0.2;
+
+        bloom += textureLod({{RT_BACK}}, uv + dither + vec2(-w, -h), i).rgb * 0.1;
+        bloom += textureLod({{RT_BACK}}, uv + dither + vec2(0, -h), i).rgb * 0.2;
+        bloom += textureLod({{RT_BACK}}, uv + dither + vec2(w, -h), i).rgb * 0.1;
+
+        bloomSum += bloom * intensity;
+
+        w *= 2.0;
+        h *= 2.0;
+        dither *= 2.0;
+        intensity *= 0.97;
     }
 
-    vec3 bloomColor = bloomAccum / max(bloomWeightAccum, 1e-4);
-    float resolutionScale = sqrt((viewWidth * viewHeight) / (1920.0 * 1080.0));
-    float bloomStrength = BLOOM_STRENGTH / max(resolutionScale, 0.75);
-    vec3 finalColor = baseColor + bloomColor * bloomStrength;
+    bloomSum /= float(mips - 3);
+
+    vec3 finalColor = mix(color, bloomSum, 0.2);
 
     imageStore({{IMG_BACK}}, pixelCoord, vec4(finalColor, 1.0));
 }

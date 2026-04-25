@@ -11,14 +11,17 @@ FOLDER_LIB = "lib"
 FOLDER_PROGRAM = "program"
 FOLDER_WORLD_0 = "world0"
 
-FILE_IGNORE = ["global_settings.glsl", ".gitignore", "build_and_watch_iris_log.ps1"]
+FILE_IGNORE = ["global_settings.glsl", ".gitignore"]
 
 GBUFFER_COMMON_FILE = "gbuffers_common.glsl"
+SHADOW_COMMON_FILE = "shadow_common.glsl"
 
-GBUFFER_PROGRAMS = ["basic", "textured", "textured_lit", "terrain", "block", "entities", "hand", "weather", "water", "hand_water"]
+GBUFFER_PROGRAMS = ["basic"]
 #GBUFFER_PROGRAMS = ["basic", "entities","weather", "water", "hand_water", "skybasic", "skytextured"]
 #GBUFFER_PROGRAMS = ["basic", "terrain", "block", "entities", "hand"]
 #GBUFFER_PROGRAMS = ["basic", "line", "textured", "textured_lit", "skybasic", "skytextured", "clouds", "terrain", "damagedblock", "block", "beaconbeam", "entities", "armor_glint", "spidereyes", "hand", "weather", "water", "hand_water"]
+
+SHADOW_PROGRAMS = [""]
 
 RT_DEFS = [
     { # 0
@@ -74,6 +77,10 @@ RT_DEFS = [
         "name": "RT_SKYVIEW",
         "format": "RGBA16F",
         "size": "0.125 0.125",
+    },
+    { # 12
+        "name": "RT_BLOOM",
+        "format": "R11F_G11F_B10F",
     },
 #    {
 #        "name": "RT_SKY_TEST",
@@ -136,13 +143,11 @@ PREPARE_INDEX = [
 
 COMPOSITE_INDEX = [
 #"skytest",
-"premip",
+"mipmap", # Need barrier?
 "lightingLUT",
-"exposure",
-"bloommip",
 "bloom",
-"gamma",
-"last"
+"exposure",
+"final"
 ]
 
 DEFERRED_INDEX = [
@@ -184,6 +189,18 @@ def generate_shader_gbuffer(stage, program):
         ]
     return process_text("\n".join(lines))
 
+def generate_shader_shadow(stage, program):
+    split = "_" if program != "" else ""
+    lines = [
+        VERSION_HEADER,
+        "",
+        f"#define {stage}",
+        f"#define SHADOW{split}{program.upper()}",
+        "",
+        f"#include /{FOLDER_PROGRAM}/{SHADOW_COMMON_FILE}"
+        ]
+    return process_text("\n".join(lines))
+
 with open("global_settings.glsl", mode="r", encoding="utf-8") as gs:
     SHADER_CONFIG["{{GLOBAL_SETTINGS}}"] = process_text(gs.read())
 
@@ -215,54 +232,97 @@ for program in GBUFFER_PROGRAMS:
     
     with open(path_vsh, "w", encoding="utf-8") as f:
         f.write(content_vsh)
-        
+
+for program in SHADOW_PROGRAMS:
+    split = "_" if program != "" else ""
+
+    base_name = f"shadow{split}{program}"
+    
+    path_fsh = os.path.join(FOLDER_SHADER, FOLDER_WORLD_0, f"{base_name}.fsh")
+    path_vsh = os.path.join(FOLDER_SHADER, FOLDER_WORLD_0, f"{base_name}.vsh")
+
+    content_fsh = generate_shader_shadow(SHADER_CONFIG["{{SHADER_FRAG}}"], program)
+    content_vsh = generate_shader_shadow(SHADER_CONFIG["{{SHADER_VERT}}"], program)
+
+    with open(path_fsh, "w", encoding="utf-8") as f:
+        f.write(content_fsh)
+    
+    with open(path_vsh, "w", encoding="utf-8") as f:
+        f.write(content_vsh)
+
 process_file(os.path.join(FOLDER_PROGRAM, GBUFFER_COMMON_FILE))
+process_file(os.path.join(FOLDER_PROGRAM, SHADOW_COMMON_FILE))
 
-for file_name in os.listdir(FOLDER_PROGRAM):
-    if file_name == GBUFFER_COMMON_FILE:
-        continue
-    process_file(os.path.join(FOLDER_PROGRAM, file_name))
+prefix_map = {
+"prepare": PREPARE_INDEX,
+"composite": COMPOSITE_INDEX,
+"deferred": DEFERRED_INDEX
+}
 
-    file_name_base = file_name.replace(".glsl", "")
-    file_type = file_name_base.split("_")
-    if len(file_type) > 1:
-        file_type = file_type[1]
-    else:
-        file_type = None
+processed_common_files = set()
 
-    if file_name.startswith("prepare"):
-        file_index = PREPARE_INDEX.index(file_type) + 1
-        file_name_final = f"prepare{file_index}"
-    elif file_name.startswith("composite"):
-        file_index = COMPOSITE_INDEX.index(file_type) + 1
-        file_name_final = f"composite{file_index}"
-    elif file_name.startswith("deferred"):
-        file_index = DEFERRED_INDEX.index(file_type) + 1
-        file_name_final = f"deferred{file_index}"
-    else:
-        file_name_final = file_name_base
+for prefix, index_list in prefix_map.items():
+    for file_type in index_list:
+        common_base_name = f"common_{file_type}"
+        common_file_name = f"{common_base_name}.glsl"
+        common_file_path = os.path.join(FOLDER_PROGRAM, common_file_name)
 
-    if file_name.endswith("_cs.glsl"):
-        file_name_final = file_name_final.replace("_cs.glsl", ".glsl")
-        path_csh = os.path.join(FOLDER_SHADER, FOLDER_WORLD_0, f"{file_name_final}.csh")
+        if os.path.isfile(common_file_path):
+            if common_file_path not in processed_common_files:
+                process_file(common_file_path)
+                processed_common_files.add(common_file_path)
 
-        content_csh = generate_shader(SHADER_CONFIG["{{SHADER_COMP}}"], file_name_base)
+            file_index = index_list.index(file_type) + 1
+            file_name_final = f"{prefix}{file_index}"
 
-        with open(path_csh, "w", encoding="utf-8") as f:
-            f.write(content_csh)
+            path_fsh = os.path.join(FOLDER_SHADER, FOLDER_WORLD_0, f"{file_name_final}.fsh")
+            path_vsh = os.path.join(FOLDER_SHADER, FOLDER_WORLD_0, f"{file_name_final}.vsh")
 
-    else:
-        path_fsh = os.path.join(FOLDER_SHADER, FOLDER_WORLD_0, f"{file_name_final}.fsh")
-        path_vsh = os.path.join(FOLDER_SHADER, FOLDER_WORLD_0, f"{file_name_final}.vsh")
+            content_fsh = generate_shader(SHADER_CONFIG["{{SHADER_FRAG}}"], common_base_name)
+            content_vsh = generate_shader(SHADER_CONFIG["{{SHADER_VERT}}"], common_base_name)
 
-        content_fsh = generate_shader(SHADER_CONFIG["{{SHADER_FRAG}}"], file_name_base)
-        content_vsh = generate_shader(SHADER_CONFIG["{{SHADER_VERT}}"], file_name_base)
+            with open(path_fsh, "w", encoding="utf-8") as f:
+                f.write(content_fsh)
+            with open(path_vsh, "w", encoding="utf-8") as f:
+                f.write(content_vsh)
 
-        with open(path_fsh, "w", encoding="utf-8") as f:
-            f.write(content_fsh)
-
-        with open(path_vsh, "w", encoding="utf-8") as f:
-            f.write(content_vsh)
+    for file_type in index_list:
+        base_name = f"{prefix}_{file_type}"
+        file_name = f"{base_name}.glsl"
+        file_path = os.path.join(FOLDER_PROGRAM, file_name)
+        
+        if os.path.isfile(file_path):
+            process_file(file_path)
+            
+            file_index = index_list.index(file_type) + 1
+            file_name_final = f"{prefix}{file_index}"
+            
+            path_fsh = os.path.join(FOLDER_SHADER, FOLDER_WORLD_0, f"{file_name_final}.fsh")
+            path_vsh = os.path.join(FOLDER_SHADER, FOLDER_WORLD_0, f"{file_name_final}.vsh")
+            
+            content_fsh = generate_shader(SHADER_CONFIG["{{SHADER_FRAG}}"], base_name)
+            content_vsh = generate_shader(SHADER_CONFIG["{{SHADER_VERT}}"], base_name)
+            
+            with open(path_fsh, "w", encoding="utf-8") as f:
+                f.write(content_fsh)
+            with open(path_vsh, "w", encoding="utf-8") as f:
+                f.write(content_vsh)
+        
+        cs_base_name = f"{prefix}_{file_type}_cs"
+        cs_file_name = f"{cs_base_name}.glsl"
+        cs_file_path = os.path.join(FOLDER_PROGRAM, cs_file_name)
+        
+        if os.path.isfile(cs_file_path):
+            process_file(cs_file_path)
+            
+            file_index = index_list.index(file_type) + 1
+            file_name_final = f"{prefix}{file_index}"
+            
+            path_csh = os.path.join(FOLDER_SHADER, FOLDER_WORLD_0, f"{file_name_final}.csh")
+            content_csh = generate_shader(SHADER_CONFIG["{{SHADER_COMP}}"], cs_base_name)
+            
+            with open(path_csh, "w", encoding="utf-8") as f:
+                f.write(content_csh)
 
 for file_name in os.listdir("./"):
     if file_name in FILE_IGNORE:
