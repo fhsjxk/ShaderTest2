@@ -5,14 +5,13 @@ uniform sampler2D {{RT_BACK}};
 in vec2 texcoord;
 
 // LOCAL SETTINGS
-const bool {{RT_BACK}}MipmapEnabled = true;
 
 /* RENDERTARGETS: {RT_BACK} */
 layout(location = 0) out vec4 color;
 
 void main()
 {
-    // Force mipmap regeneration for RT_BACK before compute passes sample textureLod.
+    // Dummy copy pass used to force Iris/OpenGL to regenerate RT_BACK mipmap chain.
     color = texelFetch({{RT_BACK}}, ivec2(gl_FragCoord.xy), 0);
 }
 #endif

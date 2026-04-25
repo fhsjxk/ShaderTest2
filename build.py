@@ -100,6 +100,11 @@ for index, rt in enumerate(RT_DEFS):
     SHADER_CONFIG[f"{{{{{name}}}}}"] = f"colortex{index}"
     SHADER_CONFIG["{{" + name + "_IMG}}"] = f"colorimg{index}"
     SHADER_CONFIG["{{" + name + "_FORMAT_IMG}}"] = format.lower()
+    
+    # Add IMG_* placeholders (new naming convention)
+    short_name = name.replace("RT_", "IMG_")
+    SHADER_CONFIG["{{" + short_name + "}}"] = f"colorimg{index}"
+    SHADER_CONFIG["{{" + short_name + "_FORMAT}}"] = format.lower()
 
     rt_formats_lines.append(
         f"const int colortex{index}Format = {format};"
@@ -123,7 +128,7 @@ SHADER_CONFIG.update({
 })
 
 PREPARE_INDEX = [
-"sky",
+#"sky",
 "lightingLUT",
 "transmitLUT",
 "atmosphereLUT"
@@ -142,7 +147,8 @@ COMPOSITE_INDEX = [
 
 DEFERRED_INDEX = [
 "skyview",
-"lighting"
+"lighting",
+"mipmap"
 ]
 
 def process_text(text):

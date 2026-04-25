@@ -1,17 +1,23 @@
 // {{SHADER_FRAG}}
 #ifdef {{SHADER_FRAG}}
+#include "/lib/common.glsl"
+#include "/lib/options.glsl"
+
 uniform sampler2D {{RT_BACK}};
 
 in vec2 texcoord;
 
-// LOCAL SETTINGS
+// Enable mipmap generation for RT_BACK in this pass
+const bool {{RT_BACK}}MipmapEnabled = true;
 
 /* RENDERTARGETS: {RT_BACK} */
 layout(location = 0) out vec4 color;
 
 void main()
 {
-    // Dummy copy pass used to force Iris/OpenGL to regenerate RT_BACK mipmap chain.
+    // Copy pass to trigger mipmap regeneration
+    // This is necessary because Iris doesn't automatically regenerate mipmaps 
+    // after compute shader writes to the texture
     color = texelFetch({{RT_BACK}}, ivec2(gl_FragCoord.xy), 0);
 }
 #endif

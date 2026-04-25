@@ -3,8 +3,7 @@
 uniform sampler2D {{RT_BACK}};
 uniform sampler2D {{RT_LIGHTING_LUT}};
 
-/* RENDERTARGETS: {RT_BACK} */
-layout({{RT_BACK_FORMAT_IMG}}) uniform writeonly image2D {{RT_BACK_IMG}};
+layout({{IMG_BACK_FORMAT}}) uniform writeonly image2D {{IMG_BACK}};
 layout(local_size_x = 8, local_size_y = 8, local_size_z = 1) in;
 const vec2 workGroupsRender = vec2(1.0, 1.0);
 
@@ -21,6 +20,7 @@ void main()
 
     float value = texelFetch({{RT_LIGHTING_LUT}}, ivec2({{POS_LIGHTING_LUT_VALUE}}), 0).r;
     vec3 color = texelFetch({{RT_BACK}}, pixelCoord, 0).rgb / mix(value, 1.0, 0.05) * 0.5;
-    imageStore({{RT_BACK_IMG}}, pixelCoord, vec4(color, 1.0));
+    
+    imageStore({{IMG_BACK}}, pixelCoord, vec4(color, 1.0));
 }
 #endif

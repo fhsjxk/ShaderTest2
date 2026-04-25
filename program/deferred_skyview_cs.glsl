@@ -9,8 +9,7 @@ uniform float eyeAltitude;
 uniform float viewWidth;
 uniform float viewHeight;
 
-/* RENDERTARGETS: {RT_SKYVIEW} */
-layout({{RT_SKYVIEW_FORMAT_IMG}}) uniform writeonly image2D {{RT_SKYVIEW_IMG}};
+layout({{IMG_SKYVIEW_FORMAT}}) uniform writeonly image2D {{IMG_SKYVIEW}};
 layout(local_size_x = 8, local_size_y = 8, local_size_z = 1) in;
 const vec2 workGroupsRender = vec2(0.125, 0.125);
 
@@ -39,7 +38,7 @@ void main()
 
     ivec2 tileMin = min(pixelCoord * 8, fullRes - ivec2(1));
     if (!tileHasSky(tileMin, fullRes)) {
-        imageStore({{RT_SKYVIEW_IMG}}, pixelCoord, vec4(0.0));
+        imageStore({{IMG_SKYVIEW}}, pixelCoord, vec4(0.0));
         return;
     }
 
@@ -49,6 +48,6 @@ void main()
     vec3 viewRay = mat3(gbufferModelViewInverse) * viewPos;
 
     vec3 sky = RgbFromSpectral(computeInscattering(normalize(viewRay.xzy), max((eyeAltitude - 64.0) * 0.01, 0.01)));
-    imageStore({{RT_SKYVIEW_IMG}}, pixelCoord, vec4(sky, 1.0));
+    imageStore({{IMG_SKYVIEW}}, pixelCoord, vec4(sky, 1.0));
 }
 #endif

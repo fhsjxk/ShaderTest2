@@ -2,8 +2,7 @@
 #ifdef {{SHADER_COMP}}
 #include "/lib/atmosphere.glsl"
 
-/* RENDERTARGETS: {RT_TRANSMIT_LUT} */
-layout({{RT_TRANSMIT_LUT_FORMAT_IMG}}) uniform writeonly image2D {{RT_TRANSMIT_LUT_IMG}};
+layout({{IMG_TRANSMIT_LUT_FORMAT}}) uniform writeonly image2D {{IMG_TRANSMIT_LUT}};
 layout(local_size_x = 8, local_size_y = 8, local_size_z = 1) in;
 const ivec3 workGroups = ivec3(32, 8, 1); // 256x64 LUT
 
@@ -16,6 +15,6 @@ void main()
     }
 
     vec2 uv = (vec2(pixelCoord) + 0.5) / vec2(lutSize);
-    imageStore({{RT_TRANSMIT_LUT_IMG}}, pixelCoord, computeTransmittanceLUT(uv));
+    imageStore({{IMG_TRANSMIT_LUT}}, pixelCoord, computeTransmittanceLUT(uv));
 }
 #endif

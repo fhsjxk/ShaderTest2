@@ -69,8 +69,8 @@ float hgPhase(float cosTheta, float g)
 float aerosolPhase(float cosTheta)
 {
     return mix(hgPhase(cosTheta, 0.6), hgPhase(cosTheta, 0.95), 0.1);
-    return mix(hgPhase(cosTheta, 0.55),mix(hgPhase(cosTheta, 0.8), hgPhase(cosTheta, 0.95), 0.15), 0.4);
-    return mix(hgPhase(cosTheta, 0.45),mix(hgPhase(cosTheta, 0.75), hgPhase(cosTheta, 0.95), 0.15), 0.4);
+    return mix(hgPhase(cosTheta, 0.55), mix(hgPhase(cosTheta, 0.8), hgPhase(cosTheta, 0.95), 0.15), 0.4);
+    return mix(hgPhase(cosTheta, 0.45), mix(hgPhase(cosTheta, 0.75), hgPhase(cosTheta, 0.95), 0.15), 0.4);
 }
 
 float rayleighPhase(float cosTheta)
