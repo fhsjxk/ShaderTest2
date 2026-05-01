@@ -19,7 +19,7 @@ void main()
     }
 
     float value = texelFetch({{RT_LIGHTING_LUT}}, ivec2({{POS_LIGHTING_LUT_VALUE}}), 0).r;
-    vec3 color = texelFetch({{RT_BACK}}, pixelCoord, 0).rgb / mix(value, 1.0, 0.05) * 0.5;
+    vec3 color = texelFetch({{RT_BACK}}, pixelCoord, 0).rgb / mix(value, 1.0, 0.02) * 0.5;
     
     imageStore({{IMG_BACK}}, pixelCoord, vec4(color, 1.0));
 }

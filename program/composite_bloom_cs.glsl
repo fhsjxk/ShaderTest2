@@ -14,6 +14,57 @@ layout(local_size_x = 8, local_size_y = 8, local_size_z = 1) in;
 
 const vec2 workGroupsRender = vec2(1.0, 1.0);
 
+// Convert screen UV and mip level to Bloom Atlas UV
+vec2 encodeBloomAtlasUV(vec2 uv, int mipLevel) {
+    // Calculate the horizontal offset for this mip level in the atlas
+    // Atlas layout: [mip1][mip2]...[mipN-2]
+    float xOffset = 0.0;
+    for (int i = 1; i < mipLevel; i++) {
+        vec2 mipSize = vec2(viewWidth, viewHeight) / pow(2.0, float(i));
+        xOffset += mipSize.x;
+    }
+    
+    // Get current mip size
+    vec2 mipSize = vec2(viewWidth, viewHeight) / pow(2.0, float(mipLevel));
+    
+    // Convert normalized UV to pixel coordinates within the mip
+    vec2 pixelCoord = uv * mipSize;
+    
+    // Add the offset and convert back to normalized atlas UV
+    // Note: We assume RT_BLOOM width is large enough (e.g., 2.0x screen width)
+    vec2 atlasPixelCoord = vec2(xOffset + pixelCoord.x, pixelCoord.y);
+    vec2 atlasSize = vec2(textureSize({{RT_BLOOM}}, 0));
+    
+    return atlasPixelCoord / atlasSize;
+}
+
+// Decode Bloom Atlas UV to get the original mip level and local UV
+// Returns: vec3(localUv.x, localUv.y, float(mipLevel))
+vec3 decodeBloomAtlasUV(vec2 atlasUV) {
+    vec2 atlasSize = vec2(textureSize({{RT_BLOOM}}, 0));
+    vec2 atlasPixelCoord = atlasUV * atlasSize;
+    
+    float currentX = 0.0;
+    int foundMip = -1;
+    vec2 localUV = vec2(0.0);
+    
+    int totalMips = textureQueryLevels({{RT_BACK}});
+    
+    for (int i = 1; i < totalMips - 1; i++) {
+        vec2 mipSize = vec2(viewWidth, viewHeight) / pow(2.0, float(i));
+        
+        if (atlasPixelCoord.x >= currentX && atlasPixelCoord.x < currentX + mipSize.x &&
+            atlasPixelCoord.y >= 0.0 && atlasPixelCoord.y < mipSize.y) {
+            foundMip = i;
+            localUV = (atlasPixelCoord - vec2(currentX, 0.0)) / mipSize;
+            break;
+        }
+        currentX += mipSize.x;
+    }
+    
+    return vec3(localUV, float(foundMip));
+}
+
 void main()
 {
     ivec2 pixelCoord = ivec2(gl_GlobalInvocationID.xy);

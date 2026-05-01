@@ -6,6 +6,8 @@
 uniform sampler2D {{RT_BACK}};
 uniform sampler2D {{RT_LIGHTING_LUT}};
 //uniform sampler2D {{RT_SKY_TEST}};
+uniform sampler2D {{RT_BLOOM}};
+
 uniform sampler2D vignettetex;
 
 #ifdef DEBUG_VIEW

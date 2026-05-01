@@ -64,7 +64,7 @@ RT_DEFS = [
         "size": "128 32",
     },
     { # 9
-        "name": "RT_SKYVIEW_LUT",
+        "name": "RT_SKYVIEW",
         "format": "RGBA16F",
         "size": "64 64",
     },
@@ -74,13 +74,14 @@ RT_DEFS = [
         "size": "32 1024",
     },
     { # 11
-        "name": "RT_SKYVIEW",
+        "name": "RT_SKY",
         "format": "RGBA16F",
         "size": "0.125 0.125",
     },
     { # 12
         "name": "RT_BLOOM",
         "format": "R11F_G11F_B10F",
+        "size": "1.0 0.5",
     },
 #    {
 #        "name": "RT_SKY_TEST",
@@ -145,13 +146,15 @@ COMPOSITE_INDEX = [
 #"skytest",
 "mipmap", # Need barrier?
 "lightingLUT",
+#"bloom_downsample",
+#"bloom_blur_vert",
 "bloom",
 "exposure",
 "final"
 ]
 
 DEFERRED_INDEX = [
-"skyview",
+"sky",
 "lighting",
 "mipmap"
 ]
