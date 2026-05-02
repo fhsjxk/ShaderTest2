@@ -24,53 +24,54 @@ void main()
 #ifdef {{SHADER_GEOM}}
 
 layout(triangles) in;
-layout(triangle_strip, max_vertices = 256) out; 
-// 3 vertices × 10 copies = 30
+layout(triangle_strip, max_vertices = 256) out;
 
 uniform mat4 gbufferModelView;
 uniform mat4 gbufferProjection;
 
-// 伪随机函数（fast hash）
-float hash(vec3 p) {
-    return fract(sin(dot(p, vec3(127.1, 311.7, 74.7))) * 43758.5453);
-}
+uniform sampler2D stardirtex;
+uniform sampler2D starcoltex;
 
-vec3 hash3(vec3 p) {
-    return vec3(
-        hash(p + 1.0),
-        hash(p + 2.0),
-        hash(p + 3.0)
-    );
+const int TEX_SIZE = 512;
+const int STARS_PER_PATCH = 80;
+
+ivec2 indexToUV(int idx) {
+    int x = idx % TEX_SIZE;
+    int y = idx / TEX_SIZE;
+    return ivec2(x, y);
 }
 
 bool inView(vec3 p) {
     vec4 clip = gbufferProjection * (gbufferModelView * vec4(p,1.0));
-    return abs(clip.x) < clip.w &&
-           abs(clip.y) < clip.w &&
-           clip.z > 0.0;
+
+    float margin = clip.w * 0.1;
+
+    return abs(clip.x) < clip.w + margin &&
+           abs(clip.y) < clip.w + margin &&
+           clip.z > -margin;
 }
 
-void emitStar(vec3 center, vec3 dir) {
-
-    // random direction
-    
+void emitStar(vec3 dir, vec3 color) {
 
     vec3 worldPos = dir * 1000.0;
 
     vec4 viewPos = gbufferModelView * vec4(worldPos, 1.0);
 
-    float size = 1;
+    float size = 2;
 
-    vec2 offsets[3] = vec2[](
-        vec2(-1,-1),
-        vec2( 3,-1),
-        vec2(-1, 3)
+    const vec2 offsets[3] = vec2[](
+        vec2(-0.866025, -0.5),
+        vec2( 0.866025, -0.5),
+        vec2( 0.0, 1.0)
     );
 
     for (int i = 0; i < 3; i++) {
         vec4 p = viewPos;
         p.xy += offsets[i] * size * p.w;
+
         gl_Position = gbufferProjection * p;
+
+
         EmitVertex();
     }
 
@@ -79,38 +80,25 @@ void emitStar(vec3 center, vec3 dir) {
 
 void main() {
 
-    vec3 base = (gl_in[0].gl_Position.xyz +
-                 gl_in[1].gl_Position.xyz +
-                 gl_in[2].gl_Position.xyz) / 3.0;
+    int baseIndex = gl_PrimitiveIDIn * STARS_PER_PATCH;
 
-    // triangle center
-    vec3 p0 = gl_in[0].gl_Position.xyz;
-    vec3 p1 = gl_in[1].gl_Position.xyz;
-    vec3 p2 = gl_in[2].gl_Position.xyz;
+    int maxStars = TEX_SIZE * TEX_SIZE;
 
-    vec3 center = (p0 + p1 + p2) / 3.0;
+    for (int i = 0; i < STARS_PER_PATCH; i++) {
 
-    int emitted = 0;
+        int starIndex = baseIndex + i;
 
-    // ===== 10× stress test =====
-    for (int i = 0; i < 85; i++) {
-        float seed = float(i);
+        if (starIndex >= maxStars) break;
 
-        vec3 dir = normalize(hash3(center + seed) * 2.0 - 1.0);
+        ivec2 uv = indexToUV(starIndex);
 
-        vec3 pos = base +  dir * 1000.0;
+        vec3 dir = texelFetch(stardirtex, uv, 0).rgb;
+        vec3 col = texelFetch(starcoltex, uv, 0).rgb;
 
-        //if (!inView(pos)) {
-        //    continue;
-        //}
+         vec3 pos = dir * 1000.0;
+         if (!inView(pos)) continue;
 
-        emitStar(center + seed, dir);
-
-        //emitted++;
-
-        //if (emitted >= 85) {
-        //    break;
-        //}
+        emitStar(dir, col);
     }
 }
 #endif

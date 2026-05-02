@@ -8,6 +8,8 @@ uniform sampler2D {{RT_LIGHTING_LUT}};
 //uniform sampler2D {{RT_SKY_TEST}};
 uniform sampler2D {{RT_BLOOM}};
 uniform sampler2D colortex15;
+uniform sampler2D starcoltex;
+uniform sampler2D stardirtex;
 
 uniform sampler2D vignettetex;
 
@@ -45,6 +47,7 @@ void main()
     color.rgb *= vignetteMask;
     #endif
 
+    //color.rgb = texelFetch(stardirtex, pixelCoord, 0).rgb;
     color.rgb = color.rgb + texelFetch(colortex15, pixelCoord, 0).rgb;
 
     #ifdef DEBUG_VIEW
