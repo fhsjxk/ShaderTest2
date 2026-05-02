@@ -7,6 +7,7 @@ uniform sampler2D {{RT_BACK}};
 uniform sampler2D {{RT_LIGHTING_LUT}};
 //uniform sampler2D {{RT_SKY_TEST}};
 uniform sampler2D {{RT_BLOOM}};
+uniform sampler2D colortex15;
 
 uniform sampler2D vignettetex;
 
@@ -43,6 +44,8 @@ void main()
     float vignetteMask = texture(vignettetex, texcoord).r * VIGNETTE_AMOUNT + (1.0 - VIGNETTE_AMOUNT);
     color.rgb *= vignetteMask;
     #endif
+
+    color.rgb = color.rgb + texelFetch(colortex15, pixelCoord, 0).rgb;
 
     #ifdef DEBUG_VIEW
     vec2 viewCoord = fract(texcoord * 2.0);

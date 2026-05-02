@@ -131,6 +131,7 @@ SHADER_CONFIG.update({
 "{{SHADER_COMP}}": "SHADER_COMP",
 "{{SHADER_FRAG}}": "SHADER_FRAG",
 "{{SHADER_VERT}}": "SHADER_VERT",
+"{{SHADER_GEOM}}": "SHADER_GEOM",
 
 "{{POS_LIGHTING_LUT_VALUE}}": "11, 0",
 })
@@ -181,14 +182,14 @@ def generate_shader(stage, program):
         ]
     return process_text("\n".join(lines))
 
-def generate_shader_gbuffer(stage, program):
+def generate_shader_gbuffer(stage, program, base_name=""):
     lines = [
         VERSION_HEADER,
         "",
         f"#define {stage}",
         f"#define GBUFFER_{program.upper()}",
         "",
-        f"#include /{FOLDER_PROGRAM}/{GBUFFER_COMMON_FILE}"
+        f"#include /{FOLDER_PROGRAM}/{base_name + ".glsl" if base_name else GBUFFER_COMMON_FILE}"
         ]
     return process_text("\n".join(lines))
 
@@ -252,6 +253,34 @@ for program in SHADOW_PROGRAMS:
     
     with open(path_vsh, "w", encoding="utf-8") as f:
         f.write(content_vsh)
+
+for file_name in os.listdir(FOLDER_PROGRAM):
+    if file_name.startswith("gbuffers_") and file_name != GBUFFER_COMMON_FILE:
+        process_file(os.path.join(FOLDER_PROGRAM, file_name))
+
+        base_name = file_name.replace(".glsl", "")
+        program = base_name.replace("gbuffers_", "")
+
+        path_fsh = os.path.join(FOLDER_SHADER, FOLDER_WORLD_0, f"{base_name}.fsh")
+        path_vsh = os.path.join(FOLDER_SHADER, FOLDER_WORLD_0, f"{base_name}.vsh")
+
+        content_fsh = generate_shader_gbuffer(SHADER_CONFIG["{{SHADER_FRAG}}"], program, base_name)
+        content_vsh = generate_shader_gbuffer(SHADER_CONFIG["{{SHADER_VERT}}"], program, base_name)
+
+        with open(path_fsh, "w", encoding="utf-8") as f:
+            f.write(content_fsh)
+
+        with open(path_vsh, "w", encoding="utf-8") as f:
+            f.write(content_vsh)
+
+        with open(os.path.join(FOLDER_PROGRAM, file_name), mode="r", encoding="utf-8") as f:
+            text = f.read()
+            if "{{SHADER_GEOM}}" in text:
+                content_gsh = generate_shader_gbuffer(SHADER_CONFIG["{{SHADER_GEOM}}"], program, base_name)
+                path_gsh = os.path.join(FOLDER_SHADER, FOLDER_WORLD_0, f"{base_name}.gsh")
+                with open(path_gsh, "w", encoding="utf-8") as f:
+                    f.write(content_gsh)
+
 
 process_file(os.path.join(FOLDER_PROGRAM, GBUFFER_COMMON_FILE))
 process_file(os.path.join(FOLDER_PROGRAM, SHADOW_COMMON_FILE))

@@ -14,7 +14,7 @@ layout(local_size_x = 8, local_size_y = 8, local_size_z = 1) in;
 
 const vec2 workGroupsRender = vec2(1.0, 1.0);
 
-// Convert screen UV and mip level to Bloom Atlas UV
+/* // Convert screen UV and mip level to Bloom Atlas UV
 vec2 encodeBloomAtlasUV(vec2 uv, int mipLevel) {
     // Calculate the horizontal offset for this mip level in the atlas
     // Atlas layout: [mip1][mip2]...[mipN-2]
@@ -63,7 +63,7 @@ vec3 decodeBloomAtlasUV(vec2 atlasUV) {
     }
     
     return vec3(localUV, float(foundMip));
-}
+} */
 
 void main()
 {
