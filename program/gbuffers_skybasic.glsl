@@ -1,22 +1,23 @@
-// {{SHADER_FRAG}}
-#ifdef {{SHADER_FRAG}}
+// SHADER_FRAG
+#ifdef SHADER_FRAG
 
 /* RENDERTARGETS: 15 */
 layout(location = 0) out vec4 color;
 
+in vec2 uv;
 flat in int index;
 
 void main()
 {
-    color.rgb = vec3(1.0);
-    color.rgb += (index % 3) / 100;
+    color.rgb = vec3(0.0);
+    color.rgb += (index % 3) * 0.3;
     //color.rgb = uv.xyx * color1 * brightness;
     color.a = 1.0;
 }
 #endif
 
-// {{SHADER_VERT}}
-#ifdef {{SHADER_VERT}}
+// SHADER_VERT
+#ifdef SHADER_VERT
 
 void main()
 {
@@ -24,22 +25,29 @@ void main()
 }
 #endif
 
-// {{SHADER_GEOM}}
-#ifdef {{SHADER_GEOM}}
+// SHADER_GEOM
+#ifdef SHADER_GEOM
 
 layout(triangles) in;
-layout(points, max_vertices = 170) out;
+layout(triangle_strip, max_vertices = 204) out;
 
+out vec2 uv;
 flat out int index;
 
 uniform mat4 gbufferModelView;
 uniform mat4 gbufferProjection;
 
-uniform sampler2D stardirtex;
-uniform sampler2D starcoltex;
+uniform sampler2D starDirectionTex;
+uniform sampler2D starColorTex;
 
 const int TEX_SIZE = 512;
-const int STARS_PER_PATCH = 204;
+const int STARS_PER_PATCH = 68;
+
+const vec2 offsets[3] = vec2[](
+        vec2(-0.866025, -0.5),
+        vec2( 0.866025, -0.5),
+        vec2( 0.0, 1.0)
+    );
 
 ivec2 indexToUV(int idx) {
     int x = idx % TEX_SIZE;
@@ -57,16 +65,25 @@ bool inView(vec3 p) {
            clip.z > -margin;
 }
 
-void emitStar(vec3 dir, float size) {
+void emitStar(vec3 dir, float size, int starIndex) {
 
-    vec3 worldPos = dir;
-    vec4 viewPos = gbufferModelView * vec4(worldPos, 1.0);
-    float invDist = 1.0 / max(0.001, -viewPos.z);
+    vec4 viewPos = gbufferModelView * vec4(dir * 1e3, 1.0);
 
-    gl_Position = gbufferProjection * viewPos;
-    gl_PointSize = size;
+    index = starIndex;
 
-    EmitVertex();
+    for (int i = 0; i < 3; i++)
+    {
+        vec4 p = viewPos;
+
+        p.xy += offsets[i] * size * 1e3;
+
+        gl_Position = gbufferProjection * p;
+
+        uv = offsets[i];
+
+        EmitVertex();
+    }
+
     EndPrimitive();
 }
 
@@ -84,12 +101,16 @@ void main() {
 
         ivec2 uv = indexToUV(starIndex);
 
-        vec3 dir = texelFetch(stardirtex, uv, 0).rgb;
-        float size = texelFetch(starcoltex, uv, 0).a * 5;
+        vec3 dir = texelFetch(starDirectionTex, uv, 0).rgb;
+        
+        vec4 data = texelFetch(starColorTex, uv, 0);
+        vec3 col = data.rgb;
+        float size = data.a * 0.005;
 
-        if (!inView(dir)) continue;
+         vec3 pos = dir;
+         if (!inView(pos)) continue;
 
-        emitStar(dir, size);
+        //emitStar(dir, size, starIndex);
     }
 }
 #endif
