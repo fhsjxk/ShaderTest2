@@ -14,32 +14,32 @@ layout({{IMG_BLOOM_FORMAT}}) uniform writeonly image2D {{IMG_BLOOM}};
 layout(local_size_x = 8, local_size_y = 8, local_size_z = 1) in;
 const vec2 workGroupsRender = vec2(2.0, 1.0); // Match RT_BLOOM dimensions (2x screen width)
 
-// Apply vertical 3-pixel Gaussian blur to the bloom atlas
-// Read from and write to RT_BLOOM (in-place blur)
-// Use robust edge clamping to avoid sampling black pixels
+// Apply horizontal 3-pixel Gaussian blur to the bloom atlas
+// This is the second pass of separable 2D Gaussian blur
+// Use robust edge clamping to avoid sampling outside mip boundaries
 
-vec3 sampleWithVerticalBlur(ivec2 coord, int mipLevel, ivec2 mipSize, int xOffset)
+vec3 sampleWithHorizontalBlur(ivec2 coord, int mipLevel, ivec2 mipSize, int xOffset)
 {
-    // Gaussian weights for 3-tap vertical blur: [0.25, 0.5, 0.25]
-    const float weightTop = 0.25;
+    // Gaussian weights for 3-tap horizontal blur: [0.25, 0.5, 0.25]
+    const float weightLeft = 0.25;
     const float weightCenter = 0.5;
-    const float weightBottom = 0.25;
+    const float weightRight = 0.25;
     
     vec3 color = vec3(0.0);
     
-    // Clamp Y coordinates to valid range
-    int y = coord.y;
-    int yTop = max(0, y - 1);
-    int yBottom = min(y + 1, mipSize.y - 1);
+    // Clamp X coordinates to valid range
+    int x = coord.x;
+    int xLeft = max(0, x - 1);
+    int xRight = min(x + 1, mipSize.x - 1);
     
-    // Sample top pixel
-    color += texelFetch({{RT_BLOOM}}, xOffset + ivec2(coord.x, yTop), 0).rgb * weightTop;
+    // Sample left pixel
+    color += texelFetch({{RT_BLOOM}}, xOffset + ivec2(xLeft, coord.y), 0).rgb * weightLeft;
     
     // Sample center pixel
     color += texelFetch({{RT_BLOOM}}, xOffset + coord, 0).rgb * weightCenter;
     
-    // Sample bottom pixel
-    color += texelFetch({{RT_BLOOM}}, xOffset + ivec2(coord.x, yBottom), 0).rgb * weightBottom;
+    // Sample right pixel
+    color += texelFetch({{RT_BLOOM}}, xOffset + ivec2(xRight, coord.y), 0).rgb * weightRight;
     
     return color;
 }
@@ -56,7 +56,6 @@ void main()
     
     // Calculate which mip level this pixel belongs to
     // Mip levels are arranged horizontally: [mip1][mip2]...[mipN-2]
-    // Start from i=1 as earlier downsampling stage
     int xOffset = 0;
     int targetMipLevel = -1;
     ivec2 mipCoord = ivec2(0);
@@ -78,10 +77,10 @@ void main()
         return;
     }
     
-    // Apply vertical 3-pixel Gaussian blur with robust edge clamping
-    vec3 color = sampleWithVerticalBlur(mipCoord, targetMipLevel, mipSize, xOffset);
+    // Apply horizontal 3-pixel Gaussian blur with edge clamping
+    vec3 color = sampleWithHorizontalBlur(mipCoord, targetMipLevel, mipSize, xOffset);
     
-    // Ensure numerical stability and prevent NaN artifacts
+    // Ensure numerical stability
     color = max(color, vec3(0.0));
     
     imageStore({{IMG_BLOOM}}, pixelCoord, vec4(color, 1.0));

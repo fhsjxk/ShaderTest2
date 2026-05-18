@@ -1,5 +1,5 @@
-// {{SHADER_FRAG}}
-#ifdef {{SHADER_FRAG}}
+// SHADER_FRAG
+#ifdef SHADER_FRAG
 uniform sampler2D gtexture;
 
 in float alpha;
@@ -12,8 +12,9 @@ void main() {
 }
 #endif
 
-// {{SHADER_VERT}}
-#ifdef {{SHADER_VERT}}
+// SHADER_VERT
+// NEED REFACTOR
+#ifdef SHADER_VERT
 out float alpha;
 out vec2 texcoord;
 

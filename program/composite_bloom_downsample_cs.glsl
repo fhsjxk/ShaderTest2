@@ -16,7 +16,7 @@ const vec2 workGroupsRender = vec2(2.0, 1.0); // Width is 2x screen size to hold
 // Pack mipmaps from RT_BACK into RT_BLOOM as a texture atlas
 // Layout: Each mip level is placed side by side horizontally
 // Skip the smallest 2 mip levels (highest indices)
-// Apply horizontal 3-pixel Gaussian blur during sampling
+// Apply horizontal 3-pixel Gaussian blur during sampling and extract highlights
 
 vec3 sampleWithHorizontalBlur(ivec2 coord, int mipLevel, ivec2 mipSize)
 {
@@ -27,22 +27,21 @@ vec3 sampleWithHorizontalBlur(ivec2 coord, int mipLevel, ivec2 mipSize)
     
     vec3 color = vec3(0.0);
     
-    // Sample left pixel
-    if (coord.x - 1 >= 0) {
-        color += texelFetch({{RT_BACK}}, ivec2(coord.x - 1, coord.y), mipLevel).rgb * weightLeft;
-    } else {
-        color += texelFetch({{RT_BACK}}, coord, mipLevel).rgb * weightLeft;
-    }
+    // Clamp sampling coordinates to valid range
+    int x = coord.x;
+    int y = clamp(coord.y, 0, mipSize.y - 1);
+    ivec2 centerCoord = ivec2(x, y);
+    
+    // Sample left pixel with edge clamping
+    int xLeft = max(0, x - 1);
+    color += texelFetch({{RT_BACK}}, ivec2(xLeft, y), mipLevel).rgb * weightLeft;
     
     // Sample center pixel
-    color += texelFetch({{RT_BACK}}, coord, mipLevel).rgb * weightCenter;
+    color += texelFetch({{RT_BACK}}, centerCoord, mipLevel).rgb * weightCenter;
     
-    // Sample right pixel
-    if (coord.x + 1 < mipSize.x) {
-        color += texelFetch({{RT_BACK}}, ivec2(coord.x + 1, coord.y), mipLevel).rgb * weightRight;
-    } else {
-        color += texelFetch({{RT_BACK}}, coord, mipLevel).rgb * weightRight;
-    }
+    // Sample right pixel with edge clamping
+    int xRight = min(x + 1, mipSize.x - 1);
+    color += texelFetch({{RT_BACK}}, ivec2(xRight, y), mipLevel).rgb * weightRight;
     
     return color;
 }
@@ -59,7 +58,8 @@ void main()
     }
     
     // Calculate which mip level this pixel belongs to
-    // Mip levels are arranged horizontally: [mip0][mip1][mip2]...[mipN-2]
+    // Mip levels are arranged horizontally: [mip1][mip2]...[mipN-2]
+    // Start from mip 1 (mip 0 is full resolution, included here for robustness)
     int xOffset = 0;
     int targetMipLevel = -1;
     ivec2 mipCoord = ivec2(0);
@@ -85,18 +85,23 @@ void main()
     vec3 color = sampleWithHorizontalBlur(mipCoord, targetMipLevel, mipSize);
     
     // Apply bloom threshold and knee to extract highlights
+    // Use a soft knee for smooth transition instead of hard threshold
     float luma = dot(color, vec3(0.2126, 0.7152, 0.0722));
     float threshold = BLOOM_THRESHOLD;
     float knee = max(BLOOM_KNEE, 1e-4);
-    float soft = clamp((luma - threshold + knee) / (2.0 * knee), 0.0, 1.0);
-    float highPass = max(luma - threshold, 0.0) + soft * soft * knee;
     
-    // Only write if above threshold
-    if (highPass > 0.0) {
-        color *= highPass / max(luma, 1e-4);
-        imageStore({{IMG_BLOOM}}, pixelCoord, vec4(color, 1.0));
-    } else {
-        imageStore({{IMG_BLOOM}}, pixelCoord, vec4(0.0, 0.0, 0.0, 1.0));
-    }
+    // Soft threshold using smoothstep-like function
+    float range = knee * 2.0;
+    float soft = smoothstep(threshold - knee, threshold + knee, luma);
+    float highPass = max(0.0, luma - threshold + knee * soft);
+    
+    // Normalize color by luminance to preserve hue, with numerical stability
+    float lumaSafe = max(luma, 1e-5);
+    color *= highPass / lumaSafe;
+    
+    // Clamp to prevent excessive bloom and NaN artifacts
+    color = clamp(color, vec3(0.0), vec3(1e2));
+    
+    imageStore({{IMG_BLOOM}}, pixelCoord, vec4(color, 1.0));
 }
 #endif
