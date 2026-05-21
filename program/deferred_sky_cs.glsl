@@ -1,5 +1,5 @@
-// SHADER_COMP
-#ifdef SHADER_COMP
+// {{SHADER_COMP}}
+#ifdef {{SHADER_COMP}}
 #include "/lib/atmosphere.glsl"
 
 uniform sampler2D depthtex0;
@@ -9,7 +9,7 @@ uniform float eyeAltitude;
 uniform float viewWidth;
 uniform float viewHeight;
 
-layout(rgba16f) uniform writeonly image2D colorimg11;
+layout({{IMG_SKY_FORMAT}}) uniform writeonly image2D {{IMG_SKY}};
 layout(local_size_x = 8, local_size_y = 8, local_size_z = 1) in;
 const vec2 workGroupsRender = vec2(0.125, 0.125);
 
@@ -40,7 +40,7 @@ void main()
     ivec2 tileMax = min(tileMin + ivec2(7), fullRes - ivec2(1));
     
     if (!tileHasSky(tileMin, tileMax)) {
-        imageStore(colorimg11, pixelCoord, vec4(0.0));
+        imageStore({{IMG_SKY}}, pixelCoord, vec4(0.0));
         return;
     }
 
@@ -49,7 +49,7 @@ void main()
     vec3 viewPos = (gbufferProjectionInverse * vec4(clipPos, 1.0)).xyz;
     vec3 viewRay = mat3(gbufferModelViewInverse) * viewPos;
 
-    vec3 sky = (computeInscattering(normalize(viewRay.xzy), max((eyeAltitude - 64.0) * 0.02, 0.001)));
-    imageStore(colorimg11, pixelCoord, vec4(sky, 1.0));
+    vec3 sky = RgbFromSpectral(computeInscattering(normalize(viewRay.xzy), max((eyeAltitude - 64.0) * 0.02, 0.001)));
+    imageStore({{IMG_SKY}}, pixelCoord, vec4(sky, 1.0));
 }
 #endif

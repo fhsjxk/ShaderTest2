@@ -16,7 +16,7 @@ const vec2 workGroupsRender = vec2(2.0, 1.0); // Match RT_BLOOM dimensions (2x s
 
 // Apply vertical 3-pixel Gaussian blur to the bloom atlas
 // Read from and write to RT_BLOOM (in-place blur)
-// Use robust edge clamping to avoid sampling black pixels
+// Use clamping at mip boundaries to avoid sampling black pixels
 
 vec3 sampleWithVerticalBlur(ivec2 coord, int mipLevel, ivec2 mipSize, int xOffset)
 {
@@ -27,19 +27,26 @@ vec3 sampleWithVerticalBlur(ivec2 coord, int mipLevel, ivec2 mipSize, int xOffse
     
     vec3 color = vec3(0.0);
     
-    // Clamp Y coordinates to valid range
-    int y = coord.y;
-    int yTop = max(0, y - 1);
-    int yBottom = min(y + 1, mipSize.y - 1);
-    
-    // Sample top pixel
-    color += texelFetch({{RT_BLOOM}}, xOffset + ivec2(coord.x, yTop), 0).rgb * weightTop;
+    // Sample top pixel with clamping
+    ivec2 topCoord = ivec2(coord.x, coord.y - 1);
+    if (topCoord.y >= 0) {
+        color += texelFetch({{RT_BLOOM}}, xOffset + topCoord, 0).rgb * weightTop;
+    } else {
+        // Clamp to edge
+        color += texelFetch({{RT_BLOOM}}, xOffset + ivec2(coord.x, 0), 0).rgb * weightTop;
+    }
     
     // Sample center pixel
     color += texelFetch({{RT_BLOOM}}, xOffset + coord, 0).rgb * weightCenter;
     
-    // Sample bottom pixel
-    color += texelFetch({{RT_BLOOM}}, xOffset + ivec2(coord.x, yBottom), 0).rgb * weightBottom;
+    // Sample bottom pixel with clamping
+    ivec2 bottomCoord = ivec2(coord.x, coord.y + 1);
+    if (bottomCoord.y < mipSize.y) {
+        color += texelFetch({{RT_BLOOM}}, xOffset + bottomCoord, 0).rgb * weightBottom;
+    } else {
+        // Clamp to edge
+        color += texelFetch({{RT_BLOOM}}, xOffset + ivec2(coord.x, mipSize.y - 1), 0).rgb * weightBottom;
+    }
     
     return color;
 }
@@ -56,13 +63,13 @@ void main()
     
     // Calculate which mip level this pixel belongs to
     // Mip levels are arranged horizontally: [mip1][mip2]...[mipN-2]
-    // Start from i=1 as earlier downsampling stage
+    // Note: We start from i=1, so mip0 is not included in the atlas for blur
     int xOffset = 0;
     int targetMipLevel = -1;
     ivec2 mipCoord = ivec2(0);
     ivec2 mipSize = ivec2(0);
     
-    for (int i = 1; i < usableMipLevels; i++) {
+    for (int i = 1; i < usableMipLevels; i++) { // Start from i=1 as specified
         mipSize = ivec2(viewWidth, viewHeight) >> i;
         if (pixelCoord.x >= xOffset && pixelCoord.x < xOffset + mipSize.x &&
             pixelCoord.y >= 0 && pixelCoord.y < mipSize.y) {
@@ -74,15 +81,12 @@ void main()
     }
     
     if (targetMipLevel == -1) {
-        // Pixel is outside of any mip region
+        // Pixel is outside of any mip region (or is mip 0 which we skip)
         return;
     }
     
-    // Apply vertical 3-pixel Gaussian blur with robust edge clamping
+    // Apply vertical 3-pixel Gaussian blur with edge clamping
     vec3 color = sampleWithVerticalBlur(mipCoord, targetMipLevel, mipSize, xOffset);
-    
-    // Ensure numerical stability and prevent NaN artifacts
-    color = max(color, vec3(0.0));
     
     imageStore({{IMG_BLOOM}}, pixelCoord, vec4(color, 1.0));
 }

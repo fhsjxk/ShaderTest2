@@ -1,5 +1,5 @@
-// SHADER_FRAG
-#ifdef SHADER_FRAG
+// {{SHADER_FRAG}}
+#ifdef {{SHADER_FRAG}}
 #include "/lib/common.glsl"
 #include "/lib/options.glsl"
 
@@ -23,9 +23,9 @@ in vec4 lighting;
 in float sunLighting;
 
 #ifdef MC_TEXTURE_FORMAT_LAB_PBR
-/* RENDERTARGETS: 1,2,4,3 */
+/* RENDERTARGETS: {RT_BASE_COLOR},{RT_NORMAL},{RT_LIGHTING0},{RT_SPECULAR} */
 #else
-/* RENDERTARGETS: 1,2,4 */
+/* RENDERTARGETS: {RT_BASE_COLOR},{RT_NORMAL},{RT_LIGHTING0} */
 #endif
 
 layout(location = 0) out vec4 outBaseColor;
@@ -59,7 +59,7 @@ void main()
         baseColor.rgb = mix(baseColor.rgb, entityColor.rgb, entityColor.a);
     #endif
 
-    //baseColor.rgb = pow(baseColor.rgb, vec3(2.2));
+    baseColor.rgb = pow(baseColor.rgb, vec3(2.2));
 
     outBaseColor = baseColor;
     outNormal.rgb = normal;
@@ -68,8 +68,8 @@ void main()
 }
 #endif
 
-// SHADER_VERT
-#ifdef SHADER_VERT
+// {{SHADER_VERT}}
+#ifdef {{SHADER_VERT}}
 #include "/lib/common.glsl"
 
 uniform mat4 gbufferModelViewInverse;
@@ -98,8 +98,8 @@ void main()
     color = gl_Color.rgb;
     normal = mat3(gbufferModelViewInverse) * (gl_NormalMatrix * gl_Normal);
 
-    lighting.rg = gl_MultiTexCoord1.xy / 240.0;
-    lighting.b = gl_Color.a;
+    lighting.rg = pow(gl_MultiTexCoord1.xy / 240.0, vec2(2.2));
+    lighting.b = pow(gl_Color.a, 2.2);
     lighting.a = 1.0;
 
     sunLighting = saturate(dot(normalize(normal), sunDirection));

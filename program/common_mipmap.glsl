@@ -1,23 +1,23 @@
-// SHADER_FRAG
-#ifdef SHADER_FRAG
+// {{SHADER_FRAG}}
+#ifdef {{SHADER_FRAG}}
 
-uniform sampler2D colortex0;
+uniform sampler2D {{RT_BACK}};
 
 in vec2 texcoord;
 
-const bool colortex0MipmapEnabled = true;
+const bool {{RT_BACK}}MipmapEnabled = true;
 
-/* RENDERTARGETS: 0 */
+/* RENDERTARGETS: {RT_BACK} */
 layout(location = 0) out vec4 color;
 
 void main()
 {
-    color = texelFetch(colortex0, ivec2(gl_FragCoord.xy), 0);
+    color = texelFetch({{RT_BACK}}, ivec2(gl_FragCoord.xy), 0);
 }
 #endif
 
-// SHADER_VERT
-#ifdef SHADER_VERT
+// {{SHADER_VERT}}
+#ifdef {{SHADER_VERT}}
 out vec2 texcoord;
 
 void main()

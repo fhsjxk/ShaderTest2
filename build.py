@@ -18,12 +18,10 @@ SHADOW_COMMON_FILE = "shadow_common.glsl"
 
 GBUFFER_PROGRAMS = ["basic"]
 #GBUFFER_PROGRAMS = ["basic", "entities","weather", "water", "hand_water", "skybasic", "skytextured"]
-GBUFFER_PROGRAMS = ["basic", "terrain", "block", "entities", "hand"]
+#GBUFFER_PROGRAMS = ["basic", "terrain", "block", "entities", "hand"]
 #GBUFFER_PROGRAMS = ["basic", "line", "textured", "textured_lit", "skybasic", "skytextured", "clouds", "terrain", "damagedblock", "block", "beaconbeam", "entities", "armor_glint", "spidereyes", "hand", "weather", "water", "hand_water"]
 
 SHADOW_PROGRAMS = [""]
-
-DEBUG_PRECOMPUTE = False
 
 RT_DEFS = [
     { # 0
@@ -63,7 +61,7 @@ RT_DEFS = [
     { # 8
         "name": "RT_ATMOSPHERE_LUT",
         "format": "RGBA16F",
-        "size": "32 32",
+        "size": "128 32",
     },
     { # 9
         "name": "RT_SKYVIEW",
@@ -95,13 +93,6 @@ RT_DEFS = [
 # RT_LIGHTING_LUT:
 # 0~10:SkyLight:x, -x, y, -y, z, -z, xz, -xz, x-z, -x-z
 # 0:R:Value
-
-IMG_DEFS = [
-    { # 0
-        "name": "RT_BACK",
-        "format": "R11F_G11F_B10F",
-    },
-]
 
 SHADER_CONFIG = {}
 
@@ -156,10 +147,8 @@ COMPOSITE_INDEX = [
 #"skytest",
 "mipmap", # Need barrier?
 "lightingLUT",
-"bloom_downsample",
-"bloom_blur_horiz",
-"bloom_blur_vert",
-"bloom_upsample",
+#"bloom_downsample",
+#"bloom_blur_vert",
 "bloom",
 "exposure",
 "final"

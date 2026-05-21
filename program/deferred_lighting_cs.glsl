@@ -1,6 +1,5 @@
-// SHADER_COMP
-// NEED REFACTOR
-#ifdef SHADER_COMP
+// {{SHADER_COMP}}
+#ifdef {{SHADER_COMP}}
 #include "/lib/common.glsl"
 #include "/lib/options.glsl"
 
@@ -8,10 +7,10 @@ uniform sampler2D depthtex0;
 uniform sampler2D shadowtex1;
 uniform sampler2D shadowtex0;
 uniform sampler2D shadowcolor0;
-uniform sampler2D colortex1;
-uniform sampler2D colortex2;
-uniform sampler2D colortex4;
-uniform sampler2D colortex11;
+uniform sampler2D {{RT_BASE_COLOR}};
+uniform sampler2D {{RT_NORMAL}};
+uniform sampler2D {{RT_LIGHTING0}};
+uniform sampler2D {{RT_SKY}};
 uniform sampler2D noisetex;
 
 uniform mat4 gbufferModelViewInverse;
@@ -24,7 +23,7 @@ uniform float ambientAmount;
 uniform float viewWidth;
 uniform float viewHeight;
 
-layout(r11f_g11f_b10f) uniform writeonly image2D colorimg0;
+layout({{IMG_BACK_FORMAT}}) uniform writeonly image2D {{IMG_BACK}};
 layout(local_size_x = 8, local_size_y = 8, local_size_z = 1) in;
 const vec2 workGroupsRender = vec2(1.0, 1.0);
 
@@ -106,17 +105,16 @@ void main() {
 
     if (depth == 1.0) {
         vec3 dither = (getNoise(uv).rgb - 0.5) * 0.05;
-        vec3 sky = texture(colortex11, uv).rgb;
+        vec3 sky = texture({{RT_SKY}}, uv).rgb;
         sky = sky * (1.0 + dither) + dither * 0.05;
         sky += float(dot(normalize(viewRay), normalize(sunDirection)) > 0.9999) * 500.0;
-        imageStore(colorimg0, pixelCoord, vec4(sky, 1.0));
+        imageStore({{RT_BACK_IMG}}, pixelCoord, vec4(sky, 1.0));
         return;
     }
 
-    vec3 baseColor = pow(texelFetch(colortex1, pixelCoord, 0).rgb, vec3(2.2));
-    vec4 normal = texelFetch(colortex2, pixelCoord, 0);
-    vec4 lighting0 = texelFetch(colortex4, pixelCoord, 0);
-    lighting0.rgb = pow(lighting0.rgb, vec3(2.2));
+    vec3 baseColor = texelFetch({{RT_BASE_COLOR}}, pixelCoord, 0).rgb;
+    vec4 normal = texelFetch({{RT_NORMAL}}, pixelCoord, 0);
+    vec4 lighting0 = texelFetch({{RT_LIGHTING0}}, pixelCoord, 0);
 
     vec3 NDCPos = vec3(clipXY, depth * 2.0 - 1.0);
     vec3 viewPos = projectAndDivide(gbufferProjectionInverse, NDCPos);
@@ -142,6 +140,6 @@ void main() {
 
     const float masterGain = 0.6;
     vec3 outColor = baseAlbedo * (diffuseSun + ambientLight + localLight) * masterGain;
-    imageStore(colorimg0, pixelCoord, vec4(outColor, 1.0));
+    imageStore({{IMG_BACK}}, pixelCoord, vec4(outColor, 1.0));
 }
 #endif
