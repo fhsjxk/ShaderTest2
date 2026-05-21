@@ -107,7 +107,7 @@ void main() {
         vec3 dither = (getNoise(uv).rgb - 0.5) * 0.05;
         vec3 sky = texture({{RT_SKY}}, uv).rgb;
         sky = sky * (1.0 + dither) + dither * 0.05;
-        sky += float(dot(normalize(viewRay), normalize(sunDirection)) > 0.9999) * 500.0;
+        sky += float(dot(normalize(viewRay), normalize(sunDirection)) > 0.9999) * 1000.0;
         imageStore({{RT_BACK_IMG}}, pixelCoord, vec4(sky, 1.0));
         return;
     }

@@ -147,8 +147,8 @@ COMPOSITE_INDEX = [
 #"skytest",
 "mipmap", # Need barrier?
 "lightingLUT",
-#"bloom_downsample",
-#"bloom_blur_vert",
+"bloom_downsample",
+"bloom_blur_vert",
 "bloom",
 "exposure",
 "final"

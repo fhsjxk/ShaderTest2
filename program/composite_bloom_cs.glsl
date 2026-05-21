@@ -5,6 +5,7 @@
 
 uniform sampler2D noisetex;
 uniform sampler2D {{RT_BACK}};
+uniform sampler2D {{RT_BLOOM}};
 
 uniform float viewWidth;
 uniform float viewHeight;
@@ -14,56 +15,25 @@ layout(local_size_x = 8, local_size_y = 8, local_size_z = 1) in;
 
 const vec2 workGroupsRender = vec2(1.0, 1.0);
 
-/* // Convert screen UV and mip level to Bloom Atlas UV
-vec2 encodeBloomAtlasUV(vec2 uv, int mipLevel) {
-    // Calculate the horizontal offset for this mip level in the atlas
-    // Atlas layout: [mip1][mip2]...[mipN-2]
-    float xOffset = 0.0;
-    for (int i = 1; i < mipLevel; i++) {
-        vec2 mipSize = vec2(viewWidth, viewHeight) / pow(2.0, float(i));
-        xOffset += mipSize.x;
-    }
-    
-    // Get current mip size
-    vec2 mipSize = vec2(viewWidth, viewHeight) / pow(2.0, float(mipLevel));
-    
-    // Convert normalized UV to pixel coordinates within the mip
-    vec2 pixelCoord = uv * mipSize;
-    
-    // Add the offset and convert back to normalized atlas UV
-    // Note: We assume RT_BLOOM width is large enough (e.g., 2.0x screen width)
-    vec2 atlasPixelCoord = vec2(xOffset + pixelCoord.x, pixelCoord.y);
-    vec2 atlasSize = vec2(textureSize({{RT_BLOOM}}, 0));
-    
-    return atlasPixelCoord / atlasSize;
-}
+// Final bloom composite step
+// 1. Read original scene color from RT_BACK (mip 0)
+// 2. Read bloom atlas from RT_BLOOM (contains blurred, bright-passed mip levels side by side)
+// 3. For each pixel, upsample bloom from all mip levels and accumulate
+// 4. Apply bloom strength and add to original color
+// 5. Write result back to RT_BACK
 
-// Decode Bloom Atlas UV to get the original mip level and local UV
-// Returns: vec3(localUv.x, localUv.y, float(mipLevel))
-vec3 decodeBloomAtlasUV(vec2 atlasUV) {
-    vec2 atlasSize = vec2(textureSize({{RT_BLOOM}}, 0));
-    vec2 atlasPixelCoord = atlasUV * atlasSize;
-    
-    float currentX = 0.0;
-    int foundMip = -1;
-    vec2 localUV = vec2(0.0);
-    
-    int totalMips = textureQueryLevels({{RT_BACK}});
-    
-    for (int i = 1; i < totalMips - 1; i++) {
-        vec2 mipSize = vec2(viewWidth, viewHeight) / pow(2.0, float(i));
-        
-        if (atlasPixelCoord.x >= currentX && atlasPixelCoord.x < currentX + mipSize.x &&
-            atlasPixelCoord.y >= 0.0 && atlasPixelCoord.y < mipSize.y) {
-            foundMip = i;
-            localUV = (atlasPixelCoord - vec2(currentX, 0.0)) / mipSize;
-            break;
-        }
-        currentX += mipSize.x;
-    }
-    
-    return vec3(localUV, float(foundMip));
-} */
+// Convert screen pixel coordinate to bloom atlas UV for a given mip level.
+// Screen pixel (x, y) maps to continuous mip position (x/2^i, y/2^i).
+// We MUST NOT snap to texel centers — keeping the continuous position lets
+// texture() with GL_LINEAR properly interpolate between adjacent mip texels.
+vec2 screenToBloomAtlasUV(ivec2 pixelCoord, int mipLevel, int xOffset, vec2 atlasSize)
+{
+    // Continuous position in mip texture space (no floor, no +0.5 snap)
+    vec2 mipPos = vec2(pixelCoord) / exp2(float(mipLevel));
+    // Position in atlas pixel space
+    vec2 atlasPixelPos = vec2(float(xOffset), 0.0) + mipPos;
+    return atlasPixelPos / atlasSize;
+}
 
 void main()
 {
@@ -73,48 +43,53 @@ void main()
         return;
     }
 
-    vec2 uv = (vec2(pixelCoord) + 0.5) / vec2(viewWidth, viewHeight);
-
     vec3 color = texelFetch({{RT_BACK}}, pixelCoord, 0).rgb;
     
-    float w = 4.0 / viewWidth;
-    float h = 4.0 / viewHeight;
-
-    float intensity = 1.0;
-
-    vec2 dither = (texture(noisetex, uv * vec2(viewWidth, viewHeight) / 128.0).rg - 0.5) * 0.005;
+    int totalMipLevels = textureQueryLevels({{RT_BACK}});
+    int usableMipLevels = min(totalMipLevels - 2, BLOOM_MAX_MIPS);
     
-    vec3 bloomSum = vec3(0);
-
-    int mips = textureQueryLevels({{RT_BACK}});
-    for(int i = 2; i < mips - 1; i++)
-    {
-        vec3 bloom = vec3(0);
-
-        bloom += textureLod({{RT_BACK}}, uv + dither + vec2(-w, h), i).rgb * 0.1;
-        bloom += textureLod({{RT_BACK}}, uv + dither + vec2(0, h), i).rgb * 0.2;
-        bloom += textureLod({{RT_BACK}}, uv + dither + vec2(w, h), i).rgb * 0.1;
-
-        bloom += textureLod({{RT_BACK}}, uv + dither + vec2(-w, 0), i).rgb * 0.2;
-        bloom += textureLod({{RT_BACK}}, uv + dither + vec2(0, 0), i).rgb * 0.2;
-        bloom += textureLod({{RT_BACK}}, uv + dither + vec2(w, 0), i).rgb * 0.2;
-
-        bloom += textureLod({{RT_BACK}}, uv + dither + vec2(-w, -h), i).rgb * 0.1;
-        bloom += textureLod({{RT_BACK}}, uv + dither + vec2(0, -h), i).rgb * 0.2;
-        bloom += textureLod({{RT_BACK}}, uv + dither + vec2(w, -h), i).rgb * 0.1;
-
-        bloomSum += bloom * intensity;
-
-        w *= 2.0;
-        h *= 2.0;
-        dither *= 2.0;
-        intensity *= 0.97;
+    if (usableMipLevels <= 1) {
+        // No bloom to apply, pass through
+        imageStore({{IMG_BACK}}, pixelCoord, vec4(color, 1.0));
+        return;
     }
-
-    bloomSum /= float(mips - 3);
-
-    vec3 finalColor = mix(color, bloomSum, 0.2);
-
+    
+    // Dither offset for bloom sample UVs (in atlas pixel units)
+    // Jittering the sample position breaks up banding from quantized mip levels
+    vec2 noiseUv = vec2(pixelCoord) / 128.0;
+    vec2 ditherPixels = (texture(noisetex, noiseUv).rg - 0.5);
+    vec2 ditherUv = ditherPixels / vec2(textureSize({{RT_BLOOM}}, 0));
+    
+    // Accumulate bloom from all mip levels in the atlas
+    vec3 bloomAccum = vec3(0.0);
+    vec2 atlasSize = vec2(textureSize({{RT_BLOOM}}, 0));
+    
+    int xOffset = 0;
+    for (int i = 1; i < usableMipLevels; i++) {
+        ivec2 mipSize = max(ivec2(viewWidth, viewHeight) >> i, ivec2(1));
+        
+        // Compute bloom atlas UV for this pixel at this mip level
+        vec2 atlasUV = screenToBloomAtlasUV(pixelCoord, i, xOffset, atlasSize);
+        
+        // Jitter UV to reduce banding (dither the sample position, not the color)
+        atlasUV += ditherUv;
+        
+        // Sample bloom atlas with bilinear filtering for smooth upsampling
+        vec3 bloomSample = texture({{RT_BLOOM}}, atlasUV).rgb;
+        
+        bloomAccum += bloomSample;
+        
+        xOffset += mipSize.x;
+    }
+    
+    // Normalize by number of mip levels and apply bloom strength
+    float bloomWeight = BLOOM_STRENGTH / max(float(usableMipLevels - 1), 1.0);
+    vec3 bloomContribution = bloomAccum * bloomWeight;
+    bloomContribution = max(bloomContribution, vec3(0.0));
+    
+    // Composite bloom onto original color (additive blending)
+    vec3 finalColor = color + bloomContribution;
+    
     imageStore({{IMG_BACK}}, pixelCoord, vec4(finalColor, 1.0));
 }
 #endif
