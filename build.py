@@ -13,6 +13,8 @@ FOLDER_WORLD_0 = "world0"
 
 FILE_IGNORE = ["global_settings.glsl", ".gitignore"]
 
+PROPERTIES_FILE = "shaders.properties"
+
 GBUFFER_COMMON_FILE = "gbuffers_common.glsl"
 SHADOW_COMMON_FILE = "shadow_common.glsl"
 
@@ -172,6 +174,22 @@ def process_file(path):
     with open(os.path.join(FOLDER_SHADER, path), mode="w", encoding="utf-8") as f:
         f.write(text)
 
+def process_file_properties(path):
+    with open(path, mode="r", encoding="utf-8") as f:
+        text = f.read()
+    pattern = re.compile(r"blend\.([^.]+)\.gbuffers = off")
+    replacement = (
+    r"blend.\1.{{RT_BACK}} = off\n"
+    r"blend.\1.{{RT_BASE_COLOR}} = off\n"
+    r"blend.\1.{{RT_NORMAL}} = off\n"
+    r"blend.\1.{{RT_SPECULAR}} = off\n"
+    r"blend.\1.{{RT_LIGHTING0}} = off"
+    )
+    text = pattern.sub(replacement, text)
+    text = process_text(text)
+    with open(os.path.join(FOLDER_SHADER, path), mode="w", encoding="utf-8") as f:
+        f.write(text)
+
 def generate_shader(stage, program):
     lines = [
         VERSION_HEADER,
@@ -285,6 +303,8 @@ for file_name in os.listdir(FOLDER_PROGRAM):
 process_file(os.path.join(FOLDER_PROGRAM, GBUFFER_COMMON_FILE))
 process_file(os.path.join(FOLDER_PROGRAM, SHADOW_COMMON_FILE))
 
+process_file_properties(PROPERTIES_FILE)
+
 prefix_map = {
 "prepare": PREPARE_INDEX,
 "composite": COMPOSITE_INDEX,
@@ -361,7 +381,8 @@ for file_name in os.listdir("./"):
         continue
 
     if os.path.isfile(file_name) and not file_name.endswith(".py"):
-        process_file(file_name)
+        if file_name != "shaders.properties":
+            process_file(file_name)
 
 for file_name in os.listdir(FOLDER_LIB):
     if file_name in FILE_IGNORE:
