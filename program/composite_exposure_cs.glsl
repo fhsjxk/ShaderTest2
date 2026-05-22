@@ -1,7 +1,7 @@
 // {{SHADER_COMP}}
 #ifdef {{SHADER_COMP}}
 uniform sampler2D {{RT_BACK}};
-uniform sampler2D {{RT_LIGHTING_LUT}};
+uniform sampler2D {{IMG_LIGHTING_LUT_SAMPLER}};
 
 layout({{IMG_BACK_FORMAT}}) uniform writeonly image2D {{IMG_BACK}};
 layout(local_size_x = 8, local_size_y = 8, local_size_z = 1) in;
@@ -18,7 +18,7 @@ void main()
         return;
     }
 
-    float value = texelFetch({{RT_LIGHTING_LUT}}, ivec2({{POS_LIGHTING_LUT_VALUE}}), 0).r;
+    float value = texelFetch({{IMG_LIGHTING_LUT_SAMPLER}}, ivec2({{POS_LIGHTING_LUT_VALUE}}), 0).r;
     vec3 color = texelFetch({{RT_BACK}}, pixelCoord, 0).rgb / mix(value, 1.0, 0.02) * 0.5;
     
     imageStore({{IMG_BACK}}, pixelCoord, vec4(color, 1.0));

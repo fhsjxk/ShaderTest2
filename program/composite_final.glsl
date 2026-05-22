@@ -4,9 +4,9 @@
 #include "/lib/options.glsl"
 
 uniform sampler2D {{RT_BACK}};
-uniform sampler2D {{RT_LIGHTING_LUT}};
+uniform sampler2D {{IMG_LIGHTING_LUT_SAMPLER}};
 //uniform sampler2D {{RT_SKY_TEST}};
-uniform sampler2D {{RT_BLOOM}};
+uniform sampler2D {{IMG_BLOOM_SAMPLER}};
 uniform sampler2D colortex15;
 uniform sampler2D starcoltex;
 uniform sampler2D stardirtex;
@@ -38,7 +38,7 @@ vec3 aces(vec3 x) {
 void main()
 {
     ivec2 pixelCoord = ivec2(gl_FragCoord.xy);
-    //float value = texelFetch({{RT_LIGHTING_LUT}}, ivec2({{POS_LIGHTING_LUT_VALUE}}), 0).r;
+    //float value = texelFetch({{IMG_LIGHTING_LUT_SAMPLER}}, ivec2({{POS_LIGHTING_LUT_VALUE}}), 0).r;
     //color.rgb = pow(aces(texelFetch({{RT_BACK}}, pixelCoord, 0).rgb / mix(value, 1.0, 0.03) / 2.0), vec3(1.0/2.2));
     color.rgb = pow(aces(texelFetch({{RT_BACK}}, pixelCoord, 0).rgb), vec3(1.0/2.2));
     //color.rgb = texture({{RT_BACK}}, texcoord).rgb;
@@ -48,7 +48,7 @@ void main()
     #endif
 
     //color.rgb = texelFetch(stardirtex, pixelCoord, 0).rgb;
-    color.rgb = color.rgb + texelFetch(colortex15, pixelCoord, 0).rgb;
+    color.rgb = color.rgb + texelFetch({{IMG_BLOOM_SAMPLER}}, pixelCoord, 0).rgb;
 
     #ifdef DEBUG_VIEW
     vec2 viewCoord = fract(texcoord * 2.0);

@@ -10,7 +10,7 @@ uniform sampler2D shadowcolor0;
 uniform sampler2D {{RT_BASE_COLOR}};
 uniform sampler2D {{RT_NORMAL}};
 uniform sampler2D {{RT_LIGHTING0}};
-uniform sampler2D {{RT_SKY}};
+uniform sampler2D {{IMG_SKY_SAMPLER}};
 uniform sampler2D noisetex;
 
 uniform mat4 gbufferModelViewInverse;
@@ -105,7 +105,7 @@ void main() {
 
     if (depth == 1.0) {
         vec3 dither = (getNoise(uv).rgb - 0.5) * 0.05;
-        vec3 sky = texture({{RT_SKY}}, uv).rgb;
+        vec3 sky = texture({{IMG_SKY_SAMPLER}}, uv).rgb;
         sky = sky * (1.0 + dither) + dither * 0.05;
         sky += float(dot(normalize(viewRay), normalize(sunDirection)) > 0.9999) * 1000.0;
         imageStore({{RT_BACK_IMG}}, pixelCoord, vec4(sky, 1.0));

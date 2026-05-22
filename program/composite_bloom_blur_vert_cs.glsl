@@ -4,19 +4,19 @@
 #include "/lib/options.glsl"
 
 uniform sampler2D {{RT_BACK}};
-uniform sampler2D {{RT_BLOOM}};
+uniform sampler2D {{IMG_BLOOM_SAMPLER}};
 
 uniform float viewWidth;
 uniform float viewHeight;
 
-/* RENDERTARGETS: {RT_BLOOM} */
+/* RENDERTARGETS: {IMG_BLOOM_SAMPLER} */
 layout({{IMG_BLOOM_FORMAT}}) uniform writeonly image2D {{IMG_BLOOM}};
 layout(local_size_x = 8, local_size_y = 8, local_size_z = 1) in;
-// RT_BLOOM size is 1.0 0.5 (full width, half height)
+// IMG_BLOOM_SAMPLER size is 1.0 0.5 (full width, half height)
 const vec2 workGroupsRender = vec2(1.0, 0.5);
 
 // Apply vertical 3-pixel Gaussian blur to the bloom atlas (separable from horizontal pass)
-// Read from and write to RT_BLOOM (in-place blur)
+// Read from and write to IMG_BLOOM_SAMPLER (in-place blur)
 // Use clamping at mip boundaries to avoid sampling black pixels from adjacent mip regions or unused area
 
 vec3 sampleWithVerticalBlur(ivec2 coord, int mipLevel, ivec2 mipSize, int xOffset)
@@ -33,36 +33,36 @@ vec3 sampleWithVerticalBlur(ivec2 coord, int mipLevel, ivec2 mipSize, int xOffse
     // Outer-top tap (offset -2)
     ivec2 outerTopCoord = ivec2(coord.x, coord.y - 2);
     if (outerTopCoord.y >= 0) {
-        color += texelFetch({{RT_BLOOM}}, ivec2(xOffset + outerTopCoord.x, outerTopCoord.y), 0).rgb * weightOuterTop;
+        color += texelFetch({{IMG_BLOOM_SAMPLER}}, ivec2(xOffset + outerTopCoord.x, outerTopCoord.y), 0).rgb * weightOuterTop;
     } else {
-        color += texelFetch({{RT_BLOOM}}, ivec2(xOffset + coord.x, 0), 0).rgb * weightOuterTop;
+        color += texelFetch({{IMG_BLOOM_SAMPLER}}, ivec2(xOffset + coord.x, 0), 0).rgb * weightOuterTop;
     }
     
     // Inner-top tap (offset -1)
     ivec2 innerTopCoord = ivec2(coord.x, coord.y - 1);
     if (innerTopCoord.y >= 0) {
-        color += texelFetch({{RT_BLOOM}}, ivec2(xOffset + innerTopCoord.x, innerTopCoord.y), 0).rgb * weightInnerTop;
+        color += texelFetch({{IMG_BLOOM_SAMPLER}}, ivec2(xOffset + innerTopCoord.x, innerTopCoord.y), 0).rgb * weightInnerTop;
     } else {
-        color += texelFetch({{RT_BLOOM}}, ivec2(xOffset + coord.x, 0), 0).rgb * weightInnerTop;
+        color += texelFetch({{IMG_BLOOM_SAMPLER}}, ivec2(xOffset + coord.x, 0), 0).rgb * weightInnerTop;
     }
     
     // Center tap
-    color += texelFetch({{RT_BLOOM}}, ivec2(xOffset + coord.x, coord.y), 0).rgb * weightCenter;
+    color += texelFetch({{IMG_BLOOM_SAMPLER}}, ivec2(xOffset + coord.x, coord.y), 0).rgb * weightCenter;
     
     // Inner-bottom tap (offset +1)
     ivec2 innerBotCoord = ivec2(coord.x, coord.y + 1);
     if (innerBotCoord.y < mipSize.y) {
-        color += texelFetch({{RT_BLOOM}}, ivec2(xOffset + innerBotCoord.x, innerBotCoord.y), 0).rgb * weightInnerBot;
+        color += texelFetch({{IMG_BLOOM_SAMPLER}}, ivec2(xOffset + innerBotCoord.x, innerBotCoord.y), 0).rgb * weightInnerBot;
     } else {
-        color += texelFetch({{RT_BLOOM}}, ivec2(xOffset + coord.x, mipSize.y - 1), 0).rgb * weightInnerBot;
+        color += texelFetch({{IMG_BLOOM_SAMPLER}}, ivec2(xOffset + coord.x, mipSize.y - 1), 0).rgb * weightInnerBot;
     }
     
     // Outer-bottom tap (offset +2)
     ivec2 outerBotCoord = ivec2(coord.x, coord.y + 2);
     if (outerBotCoord.y < mipSize.y) {
-        color += texelFetch({{RT_BLOOM}}, ivec2(xOffset + outerBotCoord.x, outerBotCoord.y), 0).rgb * weightOuterBot;
+        color += texelFetch({{IMG_BLOOM_SAMPLER}}, ivec2(xOffset + outerBotCoord.x, outerBotCoord.y), 0).rgb * weightOuterBot;
     } else {
-        color += texelFetch({{RT_BLOOM}}, ivec2(xOffset + coord.x, mipSize.y - 1), 0).rgb * weightOuterBot;
+        color += texelFetch({{IMG_BLOOM_SAMPLER}}, ivec2(xOffset + coord.x, mipSize.y - 1), 0).rgb * weightOuterBot;
     }
     
     return color;

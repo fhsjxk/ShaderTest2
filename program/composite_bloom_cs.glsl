@@ -5,7 +5,7 @@
 
 uniform sampler2D noisetex;
 uniform sampler2D {{RT_BACK}};
-uniform sampler2D {{RT_BLOOM}};
+uniform sampler2D {{IMG_BLOOM_SAMPLER}};
 
 uniform float viewWidth;
 uniform float viewHeight;
@@ -17,7 +17,7 @@ const vec2 workGroupsRender = vec2(1.0, 1.0);
 
 // Final bloom composite step
 // 1. Read original scene color from RT_BACK (mip 0)
-// 2. Read bloom atlas from RT_BLOOM (contains blurred, bright-passed mip levels side by side)
+// 2. Read bloom atlas from IMG_BLOOM_SAMPLER (contains blurred, bright-passed mip levels side by side)
 // 3. For each pixel, upsample bloom from all mip levels and accumulate
 // 4. Apply bloom strength and add to original color
 // 5. Write result back to RT_BACK
@@ -58,11 +58,11 @@ void main()
     // Jittering the sample position breaks up banding from quantized mip levels
     vec2 noiseUv = vec2(pixelCoord) / 128.0;
     vec2 ditherPixels = (texture(noisetex, noiseUv).rg - 0.5);
-    vec2 ditherUv = ditherPixels / vec2(textureSize({{RT_BLOOM}}, 0));
+    vec2 ditherUv = ditherPixels / vec2(textureSize({{IMG_BLOOM_SAMPLER}}, 0));
     
     // Accumulate bloom from all mip levels in the atlas
     vec3 bloomAccum = vec3(0.0);
-    vec2 atlasSize = vec2(textureSize({{RT_BLOOM}}, 0));
+    vec2 atlasSize = vec2(textureSize({{IMG_BLOOM_SAMPLER}}, 0));
     
     int xOffset = 0;
     for (int i = 1; i < usableMipLevels; i++) {
@@ -75,7 +75,7 @@ void main()
         atlasUV += ditherUv;
         
         // Sample bloom atlas with bilinear filtering for smooth upsampling
-        vec3 bloomSample = texture({{RT_BLOOM}}, atlasUV).rgb;
+        vec3 bloomSample = texture({{IMG_BLOOM_SAMPLER}}, atlasUV).rgb;
         
         bloomAccum += bloomSample;
         

@@ -6,8 +6,8 @@ const float PI = 3.14159265358979323846;
 const float INV_PI = 0.31830988618379067154;
 const float INV_4PI = 0.25 * INV_PI;
 
-uniform sampler2D {{RT_TRANSMIT_LUT}};
-uniform sampler2D {{RT_ATMOSPHERE_LUT}};
+uniform sampler2D {{IMG_TRANSMIT_LUT_SAMPLER}};
+//uniform sampler2D {{IMG_ATMOSPHERE_LUT_SAMPLER}};
 
 uniform vec3 sunDirection;
 
@@ -37,15 +37,15 @@ vec4 transmittanceFromLUT(float cosTheta, float normalizedAlt)
 {
     vec2 uv = vec2(clamp(cosTheta * 0.5 + 0.5, 0.0, 1.0),
                    clamp(normalizedAlt,      0.0, 1.0));
-    return texture({{RT_TRANSMIT_LUT}}, uv).rgba;
+    return texture({{IMG_TRANSMIT_LUT_SAMPLER}}, uv).rgba;
 }
 
-vec4 atmosphereFromLUT(float normalizedAlt)
-{
-    vec2 uv = vec2(0.36,
-                   clamp(normalizedAlt,      0.0, 1.0));
-    return texture({{RT_ATMOSPHERE_LUT}}, uv).rgba;
-}
+//vec4 atmosphereFromLUT(float normalizedAlt)
+//{
+//    vec2 uv = vec2(0.36,
+//                   clamp(normalizedAlt,      0.0, 1.0));
+//    return texture({{IMG_TRANSMIT_LUT_SAMPLER}}, uv).rgba;
+//}
 
 float raySphereIntersect(vec3 origin, vec3 dir, float radius)
 {
@@ -125,7 +125,8 @@ vec4 multiScatteringAnisotropic(float cosTheta, float h)
     //return vec4(0);
     //float phase = mix(hgPhase(cosTheta, 0.45),mix(hgPhase(cosTheta, 0.75), hgPhase(cosTheta, 0.95), 0.02), 0.3);
     float phase = mix(hgPhase(cosTheta, 0.6), hgPhase(cosTheta, 0.95), 0.03);
-    vec4 molecularScat = atmosphereFromLUT(h / ATM_THICKNESS);
+    //vec4 molecularScat = atmosphereFromLUT(h / ATM_THICKNESS);
+    vec4 molecularScat = RAYLEIGH_SCAT_BASE;
     return 1 * molecularScat * phase * AEROSOL_TURBIDITY * AEROSOL_BASE_DENSITY * exp(-h / AEROSOL_HEIGHT_SCALE) * 1.5e-19;
 }
 

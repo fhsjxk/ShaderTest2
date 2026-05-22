@@ -21,7 +21,7 @@ SHADOW_COMMON_FILE = "shadow_common.glsl"
 GBUFFER_PROGRAMS = ["basic"]
 #GBUFFER_PROGRAMS = ["basic", "entities","weather", "water", "hand_water", "skybasic", "skytextured"]
 #GBUFFER_PROGRAMS = ["basic", "terrain", "block", "entities", "hand"]
-#GBUFFER_PROGRAMS = ["basic", "line", "textured", "textured_lit", "skybasic", "skytextured", "clouds", "terrain", "damagedblock", "block", "beaconbeam", "entities", "armor_glint", "spidereyes", "hand", "weather", "water", "hand_water"]
+GBUFFER_PROGRAMS = ["basic", "line", "textured", "textured_lit", "skybasic", "skytextured", "clouds", "terrain", "damagedblock", "block", "beaconbeam", "entities", "armor_glint", "spidereyes", "hand", "weather", "water", "hand_water"]
 
 SHADOW_PROGRAMS = [""]
 
@@ -49,47 +49,69 @@ RT_DEFS = [
     { # 5
         "name": "RT_LIGHTING1", # Unused
         "format": "RGBA8",
-    },
-    { # 6
-        "name": "RT_LIGHTING_LUT",
-        "format": "RGBA16F",
+    }
+]
+
+IMG_DEFS = [
+    {
+        "name": "IMG_LIGHTING_LUT",
+        "format_pixel": "RGBA",
+        "format_image": "RGBA16F",
+        "type_pixel": "HALF_FLOAT",
+        "clear": False,
+        "relative": False,
         "size": "32 2",
     },
-    { # 7
-        "name": "RT_TRANSMIT_LUT",
-        "format": "RGBA8",
+    {
+        "name": "IMG_TRANSMIT_LUT",
+        "format_pixel": "RGBA",
+        "format_image": "RGBA8",
+        "type_pixel": "UNSIGNED_BYTE",
+        "clear": False,
+        "relative": False,
         "size": "256 64",
     },
-    { # 8
-        "name": "RT_ATMOSPHERE_LUT",
-        "format": "RGBA16F",
-        "size": "128 32",
-    },
-    { # 9
-        "name": "RT_SKYVIEW",
-        "format": "RGBA16F",
+    #{
+    #    "name": "IMG_ATMOSPHERE_LUT",
+    #    "format": "RGBA16F",
+    #    "size": "128 32",
+    #},
+    {
+        "name": "IMG_SKYVIEW",
+        "format_pixel": "RGBA",
+        "format_image": "RGBA16F",
+        "type_pixel": "HALF_FLOAT",
+        "clear": False,
+        "relative": False,
         "size": "64 64",
     },
-    { # 10
-        "name": "RT_FROXEL",
-        "format": "RGBA16F",
+    {
+        "name": "IMG_FROXEL",
+        "format_pixel": "RGBA",
+        "format_image": "RGBA16F",
+        "type_pixel": "HALF_FLOAT",
+        "clear": False,
+        "relative": False,
         "size": "32 1024",
     },
-    { # 11
-        "name": "RT_SKY",
-        "format": "RGBA16F",
+    {
+        "name": "IMG_SKY",
+        "format_pixel": "RGBA",
+        "format_image": "RGBA16F",
+        "type_pixel": "HALF_FLOAT",
+        "clear": False,
+        "relative": True,
         "size": "0.125 0.125",
     },
-    { # 12
-        "name": "RT_BLOOM",
-        "format": "R11F_G11F_B10F",
+    {
+        "name": "IMG_BLOOM",
+        "format_pixel": "RGB",
+        "format_image": "R11F_G11F_B10F",
+        "type_pixel": "UNSIGNED_INT_10F_11F_11F_REV",
+        "clear": False,
+        "relative": True,
         "size": "1.0 0.5",
-    },
-#    {
-#        "name": "RT_SKY_TEST",
-#        "format": "RGB32F",
-#        "size": "4096 2048",
-#    },
+    }
 ]
 
 # RT_LIGHTING_LUT:
@@ -106,8 +128,8 @@ for index, rt in enumerate(RT_DEFS):
     format = rt.get("format", "RGBA16F")
     size = rt.get("size", "1.0 1.0")
 
-    SHADER_CONFIG[f"{{{name}}}"] = index
-    SHADER_CONFIG[f"{{{{{name}}}}}"] = f"colortex{index}"
+    SHADER_CONFIG["{" + name + "}"] = index
+    SHADER_CONFIG["{{" + name + "}}"] = f"colortex{index}"
     SHADER_CONFIG["{{" + name + "_IMG}}"] = f"colorimg{index}"
     SHADER_CONFIG["{{" + name + "_FORMAT_IMG}}"] = format.lower()
     
@@ -128,6 +150,27 @@ rt_formats_lines.append("*/")
 
 SHADER_CONFIG["{{RT_FORMATS}}"] = "\n".join(rt_formats_lines)
 SHADER_CONFIG["{{RT_SIZE}}"] = "\n".join(rt_size_lines)
+
+img_dec_lines = []
+
+for index, img in enumerate(IMG_DEFS):
+    name = img["name"].lower().replace("img_", "")
+    format_pixel = img.get("format_pixel", "RGBA").lower()
+    format_image = img.get("format_image", "RGBA16F").lower()
+    type_pixel = img.get("type_pixel", "HALF_FLOAT").lower()
+    clear = str(img.get("clear", False)).lower()
+    relative = str(img.get("relative", True)).lower()
+    size = img.get("size", "1.0 1.0")
+
+    SHADER_CONFIG["{{IMG_" + name.upper() + "}}"] = f"img_{name}"
+    SHADER_CONFIG["{{IMG_" + name.upper() + "_SAMPLER}}"] = f"sampler_{name}"
+    SHADER_CONFIG["{{IMG_" + name.upper() + "_FORMAT}}"] = f"{format_image}"
+
+    img_dec_lines.append(
+        f"image.img_{name} = sampler_{name} {format_pixel} {format_image} {type_pixel} {clear} {relative} {size}"
+    )
+
+SHADER_CONFIG["{{IMG_DECS}}"] = "\n".join(img_dec_lines)
 
 SHADER_CONFIG.update({
 "{{SHADER_COMP}}": "SHADER_COMP",
@@ -177,7 +220,7 @@ def process_file(path):
 def process_file_properties(path):
     with open(path, mode="r", encoding="utf-8") as f:
         text = f.read()
-    pattern = re.compile(r"blend\.([^.]+)\.gbuffers = off")
+    pattern = re.compile(r"blend\.([^.]+)\.gbuffers\s*=\s*off")
     replacement = (
     r"blend.\1.{{RT_BACK}} = off\n"
     r"blend.\1.{{RT_BASE_COLOR}} = off\n"
