@@ -48,7 +48,7 @@ void main()
     #endif
 
     //color.rgb = texelFetch(stardirtex, pixelCoord, 0).rgb;
-    color.rgb = color.rgb + texelFetch({{IMG_BLOOM_SAMPLER}}, pixelCoord, 0).rgb;
+    //color.rgb = color.rgb + texelFetch({{IMG_BLOOM_SAMPLER}}, pixelCoord, 0).rgb;
 
     #ifdef DEBUG_VIEW
     vec2 viewCoord = fract(texcoord * 2.0);
