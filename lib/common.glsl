@@ -4,7 +4,11 @@
 
 //#define DEBUG_VIEW
 
-#define PI 3.141592653589793
+const float PI = 3.14159265358979323846;
+//#define PI 3.141592653589793$
+const float INV_PI = 0.31830988618379067154;
+const float INV_4PI = 0.07957747154594766788;
+// INV_4PI = 0.25 * INV_PI
 
 {{GLOBAL_SETTINGS}}
 
@@ -12,12 +16,12 @@
 
 float saturate(float x)
 {
-  return clamp(x, 0.0, 1.0);
+    return clamp(x, 0.0, 1.0);
 }
 
 vec3 saturate(vec3 x)
 {
-  return clamp(x, vec3(0.0), vec3(1.0));
+    return clamp(x, vec3(0.0), vec3(1.0));
 }
 
 
@@ -46,7 +50,8 @@ float specularBlinnPhong(float NoH, float exponent)
     return (exponent + 2.0) * pow(NoH, exponent) * (1.0 / (2.0 * PI));
 }
 
-float RoughnessToExponent(float roughness)
+float roughnessToExponent(float roughness)
+//float RoughnessToExponent(float roughness)$
 {
     float r = max(roughness, 0.001);
     return 2.0 / (r * r) - 2.0;

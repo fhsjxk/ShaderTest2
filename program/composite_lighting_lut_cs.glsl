@@ -15,9 +15,10 @@ void main()
 {
     barrier();
     int level = max(textureQueryLevels({{RT_BACK}}) - 2, 0);
-    float prevValue = texelFetch({{IMG_LIGHTING_LUT_SAMPLER}}, ivec2({{POS_LIGHTING_LUT_VALUE}}), 0).r;
+    float previousValue = texelFetch({{IMG_LIGHTING_LUT_SAMPLER}}, ivec2({{POS_LIGHTING_LUT_VALUE}}), 0).r;
+    //float prevValue = texelFetch({{IMG_LIGHTING_LUT_SAMPLER}}, ivec2({{POS_LIGHTING_LUT_VALUE}}), 0).r;$
     float currentValue = getBrightness(textureLod({{RT_BACK}}, vec2(0.5), level).rgb);
-    float nextValue = mix(prevValue, pow(currentValue, 0.7), frameTime * 1.0);
+    float nextValue = mix(previousValue, pow(currentValue, 0.7), frameTime * 1.0);
     imageStore({{IMG_LIGHTING_LUT}}, ivec2({{POS_LIGHTING_LUT_VALUE}}), vec4(nextValue, 0.0, 0.0, 1.0));
 }
 #endif

@@ -12,15 +12,18 @@ uniform float viewHeight;
 
 void main()
 {
-    ivec2 pixelCoord = ivec2(gl_GlobalInvocationID.xy);
-    ivec2 fullRes = ivec2(viewWidth, viewHeight);
-    if (any(greaterThanEqual(pixelCoord, fullRes))) {
+    ivec2 pixelCoordinate = ivec2(gl_GlobalInvocationID.xy);
+    //ivec2 pixelCoord = ivec2(gl_GlobalInvocationID.xy);$
+    ivec2 fullResolution = ivec2(viewWidth, viewHeight);
+    //ivec2 fullRes = ivec2(viewWidth, viewHeight);$
+    if (any(greaterThanEqual(pixelCoordinate, fullResolution)))
+    {
         return;
     }
 
     float value = texelFetch({{IMG_LIGHTING_LUT_SAMPLER}}, ivec2({{POS_LIGHTING_LUT_VALUE}}), 0).r;
-    vec3 color = texelFetch({{RT_BACK}}, pixelCoord, 0).rgb / mix(value, 1.0, 0.02) * 0.5;
-    
-    imageStore({{IMG_BACK}}, pixelCoord, vec4(color, 1.0));
+    vec3 color = texelFetch({{RT_BACK}}, pixelCoordinate, 0).rgb / mix(value, 1.0, 0.02) * 0.5;
+
+    imageStore({{IMG_BACK}}, pixelCoordinate, vec4(color, 1.0));
 }
 #endif

@@ -1,434 +1,394 @@
+"""
+ShaderTest2 — Iris Shader Pack Build Script
+=============================================
+Processes template .glsl files and generates the final shader pack
+structure consumed by Iris at runtime.
+
+Template syntax:
+  {RT_NAME}          → render target index      (e.g. {RT_BACK} → 0)
+  {{RT_NAME}}        → colortex reference        (e.g. {{RT_BACK}} → colortex0)
+  {{IMG_NAME}}       → custom image reference    (e.g. {{IMG_SKY}} → img_sky)
+  {{SHADER_COMP}}    → replaced with SHADER_COMP for compute-shader blocks
+"""
+
 import os
 import shutil
 import re
+from pathlib import Path
+from dataclasses import dataclass
+
+# ═══════════════════════════════════════════════════════════════
+#  Configuration
+# ═══════════════════════════════════════════════════════════════
 
 VERSION_HEADER = "#version 460 compatibility"
 
-FOLDER_SHADER = "E:/Minecraft/.minecraft/versions/1.21.11-Fabric/shaderpacks/ShaderTest2/shaders/"
+SHADERPACK = Path(
+    "E:/Minecraft/.minecraft/versions/1.21.11-Fabric"
+    "/shaderpacks/ShaderTest2/shaders/"
+)
 
-FOLDER_TEXTURE = "textures"
-FOLDER_LIB = "lib"
-FOLDER_PROGRAM = "program"
-FOLDER_WORLD_0 = "world0"
+DIR_TEXTURE      = "textures"
+DIR_LIB          = "lib"
+DIR_PROGRAM      = "program"
+DIR_WORLD        = "world0"
 
-FILE_IGNORE = ["global_settings.glsl", ".gitignore"]
+GBUFFER_COMMON   = "gbuffers_common.glsl"
+SHADOW_COMMON    = "shadow_common.glsl"
+PROPERTIES       = "shaders.properties"
+GLOBAL_SETTINGS  = "global_settings.glsl"
 
-PROPERTIES_FILE = "shaders.properties"
 
-GBUFFER_COMMON_FILE = "gbuffers_common.glsl"
-SHADOW_COMMON_FILE = "shadow_common.glsl"
+# ── Render Targets ───────────────────────────────────────────
+@dataclass
+class RT:
+    name: str
+    fmt: str  = "RGBA16F"
+    size: str = "1.0 1.0"
 
-GBUFFER_PROGRAMS = ["basic"]
-#GBUFFER_PROGRAMS = ["basic", "entities","weather", "water", "hand_water", "skybasic", "skytextured"]
-#GBUFFER_PROGRAMS = ["basic", "terrain", "block", "entities", "hand"]
-GBUFFER_PROGRAMS = ["basic", "line", "textured", "textured_lit", "skybasic", "skytextured", "clouds", "terrain", "damagedblock", "block", "beaconbeam", "entities", "armor_glint", "spidereyes", "hand", "weather", "water", "hand_water"]
 
-SHADOW_PROGRAMS = [""]
-
-RT_DEFS = [
-    { # 0
-        "name": "RT_BACK",
-        "format": "R11F_G11F_B10F",
-    },
-    { # 1
-        "name": "RT_BASE_COLOR", # RGB:BaseColor A:Unused
-        "format": "RGBA8",
-    },
-    { # 2
-        "name": "RT_NORMAL", # RGB:Normal A:SunLight
-        "format": "RGBA8",
-    },
-    { # 3
-        "name": "RT_SPECULAR",
-        "format": "RGBA8",
-    },
-    { # 4
-        "name": "RT_LIGHTING0", # RG:LightLevel B:AO
-        "format": "R11F_G11F_B10F",
-    },
-    { # 5
-        "name": "RT_LIGHTING1", # Unused
-        "format": "RGBA8",
-    }
+RT_LIST = [
+    RT("RT_BACK",        "R11F_G11F_B10F"),
+    RT("RT_BASE_COLOR",  "RGBA8"),
+    RT("RT_NORMAL",      "RGBA8"),
+    RT("RT_SPECULAR",    "RGBA8"),
+    RT("RT_LIGHTING0",   "R11F_G11F_B10F"),
+    RT("RT_LIGHTING1",   "RGBA8"),
 ]
 
-IMG_DEFS = [
-    {
-        "name": "IMG_BLOOM",
-        "format_pixel": "RGB",
-        "format_image": "R11F_G11F_B10F",
-        "type_pixel": "UNSIGNED_INT_10F_11F_11F_REV",
-        "clear": False,
-        "relative": True,
-        "size": "2.0 1.0",
-    },
-    {
-        "name": "IMG_LIGHTING_LUT",
-        "format_pixel": "RGBA",
-        "format_image": "RGBA16F",
-        "type_pixel": "HALF_FLOAT",
-        "clear": False,
-        "relative": False,
-        "size": "32 2",
-    },
-    {
-        "name": "IMG_TRANSMIT_LUT",
-        "format_pixel": "RGBA",
-        "format_image": "RGBA8",
-        "type_pixel": "UNSIGNED_BYTE",
-        "clear": False,
-        "relative": False,
-        "size": "256 64",
-    },
-    #{
-    #    "name": "IMG_ATMOSPHERE_LUT",
-    #    "format": "RGBA16F",
-    #    "size": "128 32",
-    #},
-    {
-        "name": "IMG_SKYVIEW",
-        "format_pixel": "RGBA",
-        "format_image": "RGBA16F",
-        "type_pixel": "HALF_FLOAT",
-        "clear": False,
-        "relative": False,
-        "size": "64 64",
-    },
-    {
-        "name": "IMG_FROXEL",
-        "format_pixel": "RGBA",
-        "format_image": "RGBA16F",
-        "type_pixel": "HALF_FLOAT",
-        "clear": False,
-        "relative": False,
-        "size": "32 1024",
-    },
-    {
-        "name": "IMG_SKY",
-        "format_pixel": "RGBA",
-        "format_image": "RGBA16F",
-        "type_pixel": "HALF_FLOAT",
-        "clear": False,
-        "relative": True,
-        "size": "0.125 0.125",
-    },
+
+# ── Custom Images ────────────────────────────────────────────
+@dataclass
+class IMG:
+    name:     str
+    pixel:    str  = "RGBA"
+    image:    str  = "RGBA16F"
+    type_:    str  = "HALF_FLOAT"
+    clear:    bool = False
+    relative: bool = True
+    size:     str  = "1.0 1.0"
+
+
+IMG_LIST = [
+    IMG("IMG_BLOOM",        pixel="RGB", image="R11F_G11F_B10F",
+        type_="UNSIGNED_INT_10F_11F_11F_REV", size="2.0 1.0"),
+    IMG("IMG_LIGHTING_LUT", image="RGBA16F", relative=False, size="32 2"),
+    IMG("IMG_TRANSMIT_LUT", image="RGBA8",   type_="UNSIGNED_BYTE",
+        relative=False, size="256 64"),
+    IMG("IMG_SKYVIEW",      image="RGBA16F", relative=False, size="64 64"),
+    IMG("IMG_FROXEL",       image="RGBA16F", relative=False, size="32 1024"),
+    IMG("IMG_SKY",          image="RGBA16F", relative=True,  size="0.125 0.125"),
 ]
 
-# RT_LIGHTING_LUT:
-# 0~10:SkyLight:x, -x, y, -y, z, -z, xz, -xz, x-z, -x-z
-# 0:R:Value
 
-SHADER_CONFIG = {}
+# ── Pipeline Stages ──────────────────────────────────────────
+# Each stage maps to  program/{prefix}_{name}.glsl
+# Output:  {prefix}{1-based-index}.{ext}
 
-rt_formats_lines = ["/*"]
-rt_size_lines = []
-
-for index, rt in enumerate(RT_DEFS):
-    name = rt["name"]
-    format = rt.get("format", "RGBA16F")
-    size = rt.get("size", "1.0 1.0")
-
-    SHADER_CONFIG["{" + name + "}"] = index
-    SHADER_CONFIG["{{" + name + "}}"] = f"colortex{index}"
-    SHADER_CONFIG["{{" + name + "_IMG}}"] = f"colorimg{index}"
-    SHADER_CONFIG["{{" + name + "_FORMAT_IMG}}"] = format.lower()
-    
-    # Add IMG_* placeholders (new naming convention)
-    short_name = name.replace("RT_", "IMG_")
-    SHADER_CONFIG["{{" + short_name + "}}"] = f"colorimg{index}"
-    SHADER_CONFIG["{{" + short_name + "_FORMAT}}"] = format.lower()
-
-    rt_formats_lines.append(
-        f"const int colortex{index}Format = {format};"
-    )
-
-    rt_size_lines.append(
-        f"size.buffer.colortex{index} = {size}"
-    )
-
-rt_formats_lines.append("*/")
-
-SHADER_CONFIG["{{RT_FORMATS}}"] = "\n".join(rt_formats_lines)
-SHADER_CONFIG["{{RT_SIZE}}"] = "\n".join(rt_size_lines)
-
-img_dec_lines = []
-
-for index, img in enumerate(IMG_DEFS):
-    name = img["name"].lower().replace("img_", "")
-    format_pixel = img.get("format_pixel", "RGBA").lower()
-    format_image = img.get("format_image", "RGBA16F").lower()
-    type_pixel = img.get("type_pixel", "HALF_FLOAT").lower()
-    clear = str(img.get("clear", False)).lower()
-    relative = str(img.get("relative", True)).lower()
-    size = img.get("size", "1.0 1.0")
-
-    SHADER_CONFIG["{{IMG_" + name.upper() + "}}"] = f"img_{name}"
-    SHADER_CONFIG["{{IMG_" + name.upper() + "_SAMPLER}}"] = f"sampler_{name}"
-    SHADER_CONFIG["{{IMG_" + name.upper() + "_FORMAT}}"] = f"{format_image}"
-
-    img_dec_lines.append(
-        f"image.img_{name} = sampler_{name} {format_pixel} {format_image} {type_pixel} {clear} {relative} {size}"
-    )
-
-SHADER_CONFIG["{{IMG_DECS}}"] = "\n".join(img_dec_lines)
-
-SHADER_CONFIG.update({
-"{{SHADER_COMP}}": "SHADER_COMP",
-"{{SHADER_FRAG}}": "SHADER_FRAG",
-"{{SHADER_VERT}}": "SHADER_VERT",
-"{{SHADER_GEOM}}": "SHADER_GEOM",
-
-"{{POS_LIGHTING_LUT_VALUE}}": "11, 0",
-})
-
-PREPARE_INDEX = [
-#"sky",
-"lightingLUT",
-"transmitLUT",
-"atmosphereLUT"
-]
-
-COMPOSITE_INDEX = [
-#"skytest",
-"mipmap", # Need barrier?
-"lightingLUT",
-"composite_bloom_atals_blur_h",
-"composite_bloom_blur_v",
-"bloom",
-"exposure",
-"final"
-]
-
-DEFERRED_INDEX = [
-"sky",
-"lighting",
-"mipmap"
-]
-
-def process_text(text):
-    pattern = re.compile("|".join(re.escape(key) for key in SHADER_CONFIG.keys()))
-    text = pattern.sub(lambda m: str(SHADER_CONFIG[m.group(0)]), text)
-    return text
-
-def process_file(path):
-    with open(path, mode="r", encoding="utf-8") as f:
-        text = f.read()
-    text = process_text(text)
-    with open(os.path.join(FOLDER_SHADER, path), mode="w", encoding="utf-8") as f:
-        f.write(text)
-
-def process_file_properties(path):
-    with open(path, mode="r", encoding="utf-8") as f:
-        text = f.read()
-    pattern = re.compile(r"blend\.([^.]+)\.gbuffers\s*=\s*off")
-    replacement = (
-    r"blend.\1.{{RT_BACK}} = off\n"
-    r"blend.\1.{{RT_BASE_COLOR}} = off\n"
-    r"blend.\1.{{RT_NORMAL}} = off\n"
-    r"blend.\1.{{RT_SPECULAR}} = off\n"
-    r"blend.\1.{{RT_LIGHTING0}} = off"
-    )
-    text = pattern.sub(replacement, text)
-    text = process_text(text)
-    with open(os.path.join(FOLDER_SHADER, path), mode="w", encoding="utf-8") as f:
-        f.write(text)
-
-def generate_shader(stage, program):
-    lines = [
-        VERSION_HEADER,
-        "",
-        f"#define {stage}",
-        "",
-        f"#include /{FOLDER_PROGRAM}/{program}.glsl"
-        ]
-    return process_text("\n".join(lines))
-
-def generate_shader_gbuffer(stage, program, base_name=""):
-    lines = [
-        VERSION_HEADER,
-        "",
-        f"#define {stage}",
-        f"#define GBUFFER_{program.upper()}",
-        "",
-        f"#include /{FOLDER_PROGRAM}/{base_name + ".glsl" if base_name else GBUFFER_COMMON_FILE}"
-        ]
-    return process_text("\n".join(lines))
-
-def generate_shader_shadow(stage, program):
-    split = "_" if program != "" else ""
-    lines = [
-        VERSION_HEADER,
-        "",
-        f"#define {stage}",
-        f"#define SHADOW{split}{program.upper()}",
-        "",
-        f"#include /{FOLDER_PROGRAM}/{SHADOW_COMMON_FILE}"
-        ]
-    return process_text("\n".join(lines))
-
-with open("global_settings.glsl", mode="r", encoding="utf-8") as gs:
-    SHADER_CONFIG["{{GLOBAL_SETTINGS}}"] = process_text(gs.read())
-
-if(os.path.exists(FOLDER_SHADER)):
-    shutil.rmtree(FOLDER_SHADER)
-
-os.makedirs(FOLDER_SHADER)
-os.makedirs(FOLDER_SHADER + FOLDER_LIB)
-os.makedirs(FOLDER_SHADER + FOLDER_PROGRAM)
-os.makedirs(FOLDER_SHADER + FOLDER_WORLD_0)
-os.makedirs(FOLDER_SHADER + FOLDER_TEXTURE)
-
-for item in os.listdir(FOLDER_TEXTURE):
-    path = os.path.join(FOLDER_TEXTURE, item)
-    if os.path.isfile(path):
-        shutil.copy(path, os.path.join(FOLDER_SHADER, FOLDER_TEXTURE))
-
-for program in GBUFFER_PROGRAMS:
-    base_name = f"gbuffers_{program}"
-    
-    path_fsh = os.path.join(FOLDER_SHADER, FOLDER_WORLD_0, f"{base_name}.fsh")
-    path_vsh = os.path.join(FOLDER_SHADER, FOLDER_WORLD_0, f"{base_name}.vsh")
-
-    content_fsh = generate_shader_gbuffer(SHADER_CONFIG["{{SHADER_FRAG}}"], program)
-    content_vsh = generate_shader_gbuffer(SHADER_CONFIG["{{SHADER_VERT}}"], program)
-
-    with open(path_fsh, "w", encoding="utf-8") as f:
-        f.write(content_fsh)
-    
-    with open(path_vsh, "w", encoding="utf-8") as f:
-        f.write(content_vsh)
-
-for program in SHADOW_PROGRAMS:
-    split = "_" if program != "" else ""
-
-    base_name = f"shadow{split}{program}"
-    
-    path_fsh = os.path.join(FOLDER_SHADER, FOLDER_WORLD_0, f"{base_name}.fsh")
-    path_vsh = os.path.join(FOLDER_SHADER, FOLDER_WORLD_0, f"{base_name}.vsh")
-
-    content_fsh = generate_shader_shadow(SHADER_CONFIG["{{SHADER_FRAG}}"], program)
-    content_vsh = generate_shader_shadow(SHADER_CONFIG["{{SHADER_VERT}}"], program)
-
-    with open(path_fsh, "w", encoding="utf-8") as f:
-        f.write(content_fsh)
-    
-    with open(path_vsh, "w", encoding="utf-8") as f:
-        f.write(content_vsh)
-
-for file_name in os.listdir(FOLDER_PROGRAM):
-    if file_name.startswith("gbuffers_") and file_name != GBUFFER_COMMON_FILE:
-        process_file(os.path.join(FOLDER_PROGRAM, file_name))
-
-        base_name = file_name.replace(".glsl", "")
-        program = base_name.replace("gbuffers_", "")
-
-        path_fsh = os.path.join(FOLDER_SHADER, FOLDER_WORLD_0, f"{base_name}.fsh")
-        path_vsh = os.path.join(FOLDER_SHADER, FOLDER_WORLD_0, f"{base_name}.vsh")
-
-        content_fsh = generate_shader_gbuffer(SHADER_CONFIG["{{SHADER_FRAG}}"], program, base_name)
-        content_vsh = generate_shader_gbuffer(SHADER_CONFIG["{{SHADER_VERT}}"], program, base_name)
-
-        with open(path_fsh, "w", encoding="utf-8") as f:
-            f.write(content_fsh)
-
-        with open(path_vsh, "w", encoding="utf-8") as f:
-            f.write(content_vsh)
-
-        with open(os.path.join(FOLDER_PROGRAM, file_name), mode="r", encoding="utf-8") as f:
-            text = f.read()
-            if "{{SHADER_GEOM}}" in text:
-                content_gsh = generate_shader_gbuffer(SHADER_CONFIG["{{SHADER_GEOM}}"], program, base_name)
-                path_gsh = os.path.join(FOLDER_SHADER, FOLDER_WORLD_0, f"{base_name}.gsh")
-                with open(path_gsh, "w", encoding="utf-8") as f:
-                    f.write(content_gsh)
-
-
-process_file(os.path.join(FOLDER_PROGRAM, GBUFFER_COMMON_FILE))
-process_file(os.path.join(FOLDER_PROGRAM, SHADOW_COMMON_FILE))
-
-process_file_properties(PROPERTIES_FILE)
-
-prefix_map = {
-"prepare": PREPARE_INDEX,
-"composite": COMPOSITE_INDEX,
-"deferred": DEFERRED_INDEX
+PIPELINE = {
+    "prepare":   ["lighting_lut", "transmit_lut", "atmosphere_lut"],
+    "composite": ["mipmap", "lighting_lut",
+                  "composite_bloom_atlas_blur_h",
+                  "composite_bloom_blur_v",
+                  "bloom", "exposure", "final"],
+    "deferred":  ["sky", "lighting", "mipmap"],
 }
 
-processed_common_files = set()
+GBUFFER_VARIANTS = [
+    "basic", "line", "textured", "textured_lit", "skybasic", "skytextured",
+    "clouds", "terrain", "damagedblock", "block", "beaconbeam",
+    "entities", "armor_glint", "spidereyes", "hand",
+    "weather", "water", "hand_water",
+]
 
-for prefix, index_list in prefix_map.items():
-    for file_type in index_list:
-        common_base_name = f"common_{file_type}"
-        common_file_name = f"{common_base_name}.glsl"
-        common_file_path = os.path.join(FOLDER_PROGRAM, common_file_name)
+SHADOW_VARIANTS = [""]
 
-        if os.path.isfile(common_file_path):
-            if common_file_path not in processed_common_files:
-                process_file(common_file_path)
-                processed_common_files.add(common_file_path)
+EXCLUDE_ROOT = {PROPERTIES, GLOBAL_SETTINGS, ".gitignore", "NAMING_CONVENTION.md"}
 
-            file_index = index_list.index(file_type) + 1
-            file_name_final = f"{prefix}{file_index}"
 
-            path_fsh = os.path.join(FOLDER_SHADER, FOLDER_WORLD_0, f"{file_name_final}.fsh")
-            path_vsh = os.path.join(FOLDER_SHADER, FOLDER_WORLD_0, f"{file_name_final}.vsh")
+# ═══════════════════════════════════════════════════════════════
+#  Template Engine
+# ═══════════════════════════════════════════════════════════════
 
-            content_fsh = generate_shader(SHADER_CONFIG["{{SHADER_FRAG}}"], common_base_name)
-            content_vsh = generate_shader(SHADER_CONFIG["{{SHADER_VERT}}"], common_base_name)
+class TemplateEngine:
+    """Compiles a single regex from all template variables for fast
+    one-pass substitution.  Keys are regex-escaped automatically."""
 
-            with open(path_fsh, "w", encoding="utf-8") as f:
-                f.write(content_fsh)
-            with open(path_vsh, "w", encoding="utf-8") as f:
-                f.write(content_vsh)
+    def __init__(self):
+        self._vars: dict[str, str] = {}
+        self._regex: re.Pattern | None = None
 
-    for file_type in index_list:
-        base_name = f"{prefix}_{file_type}"
-        file_name = f"{base_name}.glsl"
-        file_path = os.path.join(FOLDER_PROGRAM, file_name)
-        
-        if os.path.isfile(file_path):
-            process_file(file_path)
-            
-            file_index = index_list.index(file_type) + 1
-            file_name_final = f"{prefix}{file_index}"
-            
-            path_fsh = os.path.join(FOLDER_SHADER, FOLDER_WORLD_0, f"{file_name_final}.fsh")
-            path_vsh = os.path.join(FOLDER_SHADER, FOLDER_WORLD_0, f"{file_name_final}.vsh")
-            
-            content_fsh = generate_shader(SHADER_CONFIG["{{SHADER_FRAG}}"], base_name)
-            content_vsh = generate_shader(SHADER_CONFIG["{{SHADER_VERT}}"], base_name)
-            
-            with open(path_fsh, "w", encoding="utf-8") as f:
-                f.write(content_fsh)
-            with open(path_vsh, "w", encoding="utf-8") as f:
-                f.write(content_vsh)
-        
-        cs_base_name = f"{prefix}_{file_type}_cs"
-        cs_file_name = f"{cs_base_name}.glsl"
-        cs_file_path = os.path.join(FOLDER_PROGRAM, cs_file_name)
-        
-        if os.path.isfile(cs_file_path):
-            process_file(cs_file_path)
-            
-            file_index = index_list.index(file_type) + 1
-            file_name_final = f"{prefix}{file_index}"
-            
-            path_csh = os.path.join(FOLDER_SHADER, FOLDER_WORLD_0, f"{file_name_final}.csh")
-            content_csh = generate_shader(SHADER_CONFIG["{{SHADER_COMP}}"], cs_base_name)
-            
-            with open(path_csh, "w", encoding="utf-8") as f:
-                f.write(content_csh)
+    # -- registration -------------------------------------------------
+    def add(self, key: str, value) -> None:
+        self._vars[key] = str(value)
 
-for file_name in os.listdir("./"):
-    if file_name in FILE_IGNORE:
-        continue
+    def add_all(self, mapping: dict[str, str]) -> None:
+        for k, v in mapping.items():
+            self._vars[k] = str(v)
 
-    if os.path.isfile(file_name) and not file_name.endswith(".py"):
-        if file_name != "shaders.properties":
-            process_file(file_name)
+    def freeze(self) -> None:
+        """Compile the regex.  Call after all variables are registered."""
+        escaped = (re.escape(k) for k in self._vars)
+        self._regex = re.compile("|".join(escaped))
 
-for file_name in os.listdir(FOLDER_LIB):
-    if file_name in FILE_IGNORE:
-        continue
+    # -- processing ---------------------------------------------------
+    def apply(self, text: str) -> str:
+        if self._regex is None:
+            self.freeze()
+        return self._regex.sub(lambda m: self._vars[m.group(0)], text)
 
-    process_file(os.path.join(FOLDER_LIB, file_name))
+    def apply_file(self, src: Path, dst: Path) -> None:
+        dst.write_text(self.apply(src.read_text(encoding="utf-8")),
+                       encoding="utf-8")
+
+    # -- accessors ----------------------------------------------------
+    @property
+    def frag(self) -> str: return self._vars["{{SHADER_FRAG}}"]
+    @property
+    def vert(self) -> str: return self._vars["{{SHADER_VERT}}"]
+    @property
+    def comp(self) -> str: return self._vars["{{SHADER_COMP}}"]
+    @property
+    def geom(self) -> str: return self._vars["{{SHADER_GEOM}}"]
+
+
+def build_template_vars() -> TemplateEngine:
+    """Populate the template engine from RT / IMG definitions."""
+    tmpl = TemplateEngine()
+
+    # ── Render targets ──────────────────────────────────────────
+    rt_fmt_lines = ["/*"]
+    rt_size_lines = []
+
+    for i, rt in enumerate(RT_LIST):
+        name  = rt.name
+        fmt   = rt.fmt
+        short = name.replace("RT_", "IMG_")
+
+        # {RT_BACK} → 0  |  {{RT_BACK}} → colortex0
+        tmpl.add("{" + name + "}", i)
+        tmpl.add("{{" + name + "}}", f"colortex{i}")
+        tmpl.add("{{" + name + "_IMG}}", f"colorimg{i}")
+        tmpl.add("{{" + name + "_FORMAT_IMG}}", fmt.lower())
+        tmpl.add("{{" + short + "}}", f"colorimg{i}")
+        tmpl.add("{{" + short + "_FORMAT}}", fmt.lower())
+
+        rt_fmt_lines.append(f"const int colortex{i}Format = {fmt};")
+        rt_size_lines.append(f"size.buffer.colortex{i} = {rt.size}")
+
+    rt_fmt_lines.append("*/")
+    tmpl.add("{{RT_FORMATS}}", "\n".join(rt_fmt_lines))
+    tmpl.add("{{RT_SIZE}}",    "\n".join(rt_size_lines))
+
+    # ── Custom images ───────────────────────────────────────────
+    img_lines = []
+    for img in IMG_LIST:
+        safe = img.name.lower().removeprefix("img_")
+        tmpl.add("{{IMG_" + safe.upper() + "}}", f"img_{safe}")
+        tmpl.add("{{IMG_" + safe.upper() + "_SAMPLER}}", f"sampler_{safe}")
+        tmpl.add("{{IMG_" + safe.upper() + "_FORMAT}}", img.image.lower())
+
+        img_lines.append(
+            f"image.img_{safe} = sampler_{safe} "
+            f"{img.pixel.lower()} {img.image.lower()} {img.type_.lower()} "
+            f"{str(img.clear).lower()} {str(img.relative).lower()} {img.size}"
+        )
+    tmpl.add("{{IMG_DECS}}", "\n".join(img_lines))
+
+    # ── Shader-type markers ─────────────────────────────────────
+    for st in ("SHADER_COMP", "SHADER_FRAG", "SHADER_VERT", "SHADER_GEOM"):
+        tmpl.add("{{" + st + "}}", st)
+
+    tmpl.add("{{POS_LIGHTING_LUT_VALUE}}", "11, 0")
+    tmpl.freeze()
+    return tmpl
+
+
+# ═══════════════════════════════════════════════════════════════
+#  Shader-generation helpers
+# ═══════════════════════════════════════════════════════════════
+
+_STAGE_EXT = {
+    "SHADER_COMP": ".csh",
+    "SHADER_FRAG": ".fsh",
+    "SHADER_VERT": ".vsh",
+    "SHADER_GEOM": ".gsh",
+}
+
+
+def _source(stage: str, include: str,
+            defines: list[str] | None = None) -> str:
+    """Build the entry-point shader source text."""
+    parts = [VERSION_HEADER, "", f"#define {stage}"]
+    if defines:
+        parts.extend(f"#define {d}" for d in defines)
+    parts += ["", f"#include /{include}"]
+    return "\n".join(parts)
+
+
+def _emit(tmpl: TemplateEngine, out_dir: Path, base: str,
+          stage: str, include: str,
+          defines: list[str] | None = None) -> None:
+    ext = _STAGE_EXT[stage]
+    (out_dir / f"{base}{ext}").write_text(
+        tmpl.apply(_source(stage, include, defines)), encoding="utf-8")
+
+
+def _emit_pair(tmpl: TemplateEngine, out_dir: Path, base: str,
+               include: str, defines: list[str] | None = None) -> None:
+    _emit(tmpl, out_dir, base, tmpl.frag, include, defines)
+    _emit(tmpl, out_dir, base, tmpl.vert, include, defines)
+
+
+# ═══════════════════════════════════════════════════════════════
+#  Build Orchestrator
+# ═══════════════════════════════════════════════════════════════
+
+class ShaderBuilder:
+    def __init__(self):
+        self.tmpl = build_template_vars()
+        self.src_prog = Path(DIR_PROGRAM)
+        self.src_lib  = Path(DIR_LIB)
+        self.out_world = SHADERPACK / DIR_WORLD
+
+    # ── entry point ────────────────────────────────────────────
+
+    def run(self) -> None:
+        # 1 — process global_settings (may itself contain template vars)
+        gs_text = Path(GLOBAL_SETTINGS).read_text(encoding="utf-8")
+        self.tmpl.add("{{GLOBAL_SETTINGS}}", self.tmpl.apply(gs_text))
+        self.tmpl.freeze()
+
+        # 2 — clean & recreate output tree
+        if SHADERPACK.exists():
+            shutil.rmtree(SHADERPACK)
+        for d in (SHADERPACK / DIR_LIB,
+                  SHADERPACK / DIR_PROGRAM,
+                  self.out_world,
+                  SHADERPACK / DIR_TEXTURE):
+            os.makedirs(d, exist_ok=True)
+
+        # 3 — copy texture assets
+        for f in Path(DIR_TEXTURE).iterdir():
+            if f.is_file():
+                shutil.copy(f, SHADERPACK / DIR_TEXTURE / f.name)
+
+        # 4 — process shared library files
+        for f in self.src_lib.iterdir():
+            if f.is_file():
+                self.tmpl.apply_file(f, SHADERPACK / DIR_LIB / f.name)
+
+        # 5 — build shader stages
+        self._gbuffers()
+        self._shadows()
+        self._pipeline()
+        self._properties()
+
+        # 6 — copy root-level loose files
+        for f in Path(".").iterdir():
+            if (f.is_file() and f.suffix != ".py"
+                    and f.name not in EXCLUDE_ROOT):
+                self.tmpl.apply_file(f, SHADERPACK / f.name)
+
+    # ── gbuffers ───────────────────────────────────────────────
+
+    def _gbuffers(self) -> None:
+        common = self.src_prog / GBUFFER_COMMON
+        self.tmpl.apply_file(common, SHADERPACK / DIR_PROGRAM / GBUFFER_COMMON)
+
+        # A — variants relying on gbuffers_common (no dedicated file)
+        for variant in GBUFFER_VARIANTS:
+            if (self.src_prog / f"gbuffers_{variant}.glsl").exists():
+                continue
+            _emit_pair(self.tmpl, self.out_world,
+                       base=f"gbuffers_{variant}",
+                       include=f"{DIR_PROGRAM}/{GBUFFER_COMMON}",
+                       defines=[f"GBUFFER_{variant.upper()}"])
+
+        # B — variants with a dedicated source file
+        for f in self.src_prog.iterdir():
+            if not f.name.startswith("gbuffers_") or f.name == GBUFFER_COMMON:
+                continue
+
+            self.tmpl.apply_file(f, SHADERPACK / DIR_PROGRAM / f.name)
+
+            base    = f.stem
+            variant = base.removeprefix("gbuffers_")
+            inc     = f"{DIR_PROGRAM}/{f.name}"
+            defines = [f"GBUFFER_{variant.upper()}"]
+
+            _emit_pair(self.tmpl, self.out_world, base, inc, defines)
+
+            if "{{SHADER_GEOM}}" in f.read_text(encoding="utf-8"):
+                _emit(self.tmpl, self.out_world, base,
+                      self.tmpl.geom, inc, defines)
+
+    # ── shadows ────────────────────────────────────────────────
+
+    def _shadows(self) -> None:
+        common = self.src_prog / SHADOW_COMMON
+        self.tmpl.apply_file(common, SHADERPACK / DIR_PROGRAM / SHADOW_COMMON)
+
+        for variant in SHADOW_VARIANTS:
+            sep  = "_" if variant else ""
+            base = f"shadow{sep}{variant}"
+            _emit_pair(self.tmpl, self.out_world, base,
+                       include=f"{DIR_PROGRAM}/{SHADOW_COMMON}",
+                       defines=[f"SHADOW{sep}{variant.upper()}"]
+                       if variant else None)
+
+    # ── pipeline (prepare / composite / deferred) ──────────────
+
+    def _pipeline(self) -> None:
+        seen: set[Path] = set()
+
+        for prefix, names in PIPELINE.items():
+            for n, name in enumerate(names, 1):
+                final = f"{prefix}{n}"
+
+                # common_*.glsl  (shared include, e.g. common_mipmap.glsl)
+                common = self.src_prog / f"common_{name}.glsl"
+                if common.exists() and common not in seen:
+                    self.tmpl.apply_file(common,
+                                         SHADERPACK / DIR_PROGRAM / common.name)
+                    seen.add(common)
+                    _emit_pair(self.tmpl, self.out_world, final,
+                               f"{DIR_PROGRAM}/{common.name}")
+
+                # {prefix}_{name}.glsl  (fragment / vertex entry points)
+                fv = self.src_prog / f"{prefix}_{name}.glsl"
+                if fv.exists():
+                    self.tmpl.apply_file(fv,
+                                         SHADERPACK / DIR_PROGRAM / fv.name)
+                    _emit_pair(self.tmpl, self.out_world, final,
+                               f"{DIR_PROGRAM}/{fv.name}")
+
+                # {prefix}_{name}_cs.glsl  (compute entry points)
+                cs = self.src_prog / f"{prefix}_{name}_cs.glsl"
+                if cs.exists():
+                    self.tmpl.apply_file(cs,
+                                         SHADERPACK / DIR_PROGRAM / cs.name)
+                    _emit(self.tmpl, self.out_world, final,
+                          self.tmpl.comp, f"{DIR_PROGRAM}/{cs.name}")
+
+    # ── properties ─────────────────────────────────────────────
+
+    def _properties(self) -> None:
+        text = Path(PROPERTIES).read_text(encoding="utf-8")
+
+        # Expand "blend.X.gbuffers = off" → off for every RT
+        # Uses {{RT_NAME}} → colortexN (Iris buffer name), not {RT_NAME} → index
+        pat = re.compile(r"blend\.([^.]+)\.gbuffers\s*=\s*off")
+        expand = "\n".join(f"blend.\\1.{{{{{rt.name}}}}} = off" for rt in RT_LIST)
+        text = pat.sub(expand, text)
+        text = self.tmpl.apply(text)
+
+        (SHADERPACK / PROPERTIES).write_text(text, encoding="utf-8")
+
+
+# ═══════════════════════════════════════════════════════════════
+#  Entry Point
+# ═══════════════════════════════════════════════════════════════
+
+if __name__ == "__main__":
+    ShaderBuilder().run()
