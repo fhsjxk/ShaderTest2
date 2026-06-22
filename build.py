@@ -348,10 +348,11 @@ class ShaderBuilder:
 
                 # common_*.glsl  (shared include, e.g. common_mipmap.glsl)
                 common = self.src_prog / f"common_{name}.glsl"
-                if common.exists() and common not in seen:
-                    self.tmpl.apply_file(common,
-                                         SHADERPACK / DIR_PROGRAM / common.name)
-                    seen.add(common)
+                if common.exists():
+                    if common not in seen:
+                        self.tmpl.apply_file(
+                            common, SHADERPACK / DIR_PROGRAM / common.name)
+                        seen.add(common)
                     _emit_pair(self.tmpl, self.out_world, final,
                                f"{DIR_PROGRAM}/{common.name}")
 
