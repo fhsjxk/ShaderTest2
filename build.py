@@ -54,6 +54,15 @@ RT_DEFS = [
 
 IMG_DEFS = [
     {
+        "name": "IMG_BLOOM",
+        "format_pixel": "RGB",
+        "format_image": "R11F_G11F_B10F",
+        "type_pixel": "UNSIGNED_INT_10F_11F_11F_REV",
+        "clear": False,
+        "relative": True,
+        "size": "2.0 1.0",
+    },
+    {
         "name": "IMG_LIGHTING_LUT",
         "format_pixel": "RGBA",
         "format_image": "RGBA16F",
@@ -103,15 +112,6 @@ IMG_DEFS = [
         "relative": True,
         "size": "0.125 0.125",
     },
-    {
-        "name": "IMG_BLOOM",
-        "format_pixel": "RGB",
-        "format_image": "R11F_G11F_B10F",
-        "type_pixel": "UNSIGNED_INT_10F_11F_11F_REV",
-        "clear": False,
-        "relative": True,
-        "size": "1.0 0.5",
-    }
 ]
 
 # RT_LIGHTING_LUT:
@@ -192,8 +192,8 @@ COMPOSITE_INDEX = [
 #"skytest",
 "mipmap", # Need barrier?
 "lightingLUT",
-"bloom_downsample",
-"bloom_blur_vert",
+"composite_bloom_atals_blur_h",
+"composite_bloom_blur_v",
 "bloom",
 "exposure",
 "final"
