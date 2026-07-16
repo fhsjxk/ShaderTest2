@@ -6,7 +6,8 @@
 uniform sampler2D {{RT_BACK}};
 uniform sampler2D {{IMG_LIGHTING_LUT_SAMPLER}};
 //uniform sampler2D {{RT_SKY_TEST}};
-uniform sampler2D {{IMG_BLOOM_SAMPLER}};
+uniform sampler2D {{RT_BLOOM}};
+//uniform sampler2D {{IMG_BLOOM_SAMPLER}};$
 uniform sampler2D colortex15;
 uniform sampler2D starcoltex;
 uniform sampler2D stardirtex;
@@ -51,7 +52,8 @@ void main()
     #endif
 
     //color.rgb = texelFetch(stardirtex, pixelCoordinate, 0).rgb;
-    //color.rgb = color.rgb + texelFetch({{IMG_BLOOM_SAMPLER}}, pixelCoordinate, 0).rgb;
+    //color.rgb = color.rgb + texelFetch({{RT_BLOOM}}, pixelCoordinate, 0).rgb;
+    //color.rgb = color.rgb + texelFetch({{IMG_BLOOM_SAMPLER}}, pixelCoordinate, 0).rgb;$
 
     #ifdef DEBUG_VIEW
     vec2 viewCoordinate = fract(texcoord * 2.0);
@@ -86,6 +88,22 @@ void main()
     //float dot = 1.0 - smoothstep(dotSize, dotSize + 0.001, dist);$
     color.rgb = mix(color.rgb, vec4(1.0, 1.0, 1.0, 1.0).rgb, dotMask);
     #endif
+
+    // Bloom atlas visualization — scaled to bottom half of screen.
+    // Atlas: 2× viewWidth wide, viewHeight tall, mips laid out horizontally.
+    //if (texcoord.y < 0.5)
+    //{
+    //    // Scale atlas down: atlas is 2× screen width, so map x∈[0,2] → [0,1]
+    //    vec2 atlasUV = vec2(texcoord.x * 2.0, texcoord.y * 2.0);
+    //    vec3 bloom = texture({{RT_BLOOM}}, atlasUV).rgb;
+    //    //vec3 bloom = texture({{IMG_BLOOM_SAMPLER}}, atlasUV).rgb;$
+    //    // Boost for visibility
+    //    color.rgb = bloom * 5.0;
+    //}
+    vec3 bloom = texture({{RT_BLOOM}}, texcoord).rgb;
+    //vec3 bloom = texture({{IMG_BLOOM_SAMPLER}}, texcoord).rgb;$
+    //color.rgb = bloom * 5.0;
+    //#endif
 }
 #endif
 

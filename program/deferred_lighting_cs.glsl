@@ -2,7 +2,7 @@
 #ifdef {{SHADER_COMP}}
 #include "/lib/common.glsl"
 #include "/lib/options.glsl"
-#include "/program/shadow_common.glsl"
+#include "/lib/shadow_utils.glsl"
 
 uniform sampler2D depthtex0;
 uniform sampler2D shadowtex1;

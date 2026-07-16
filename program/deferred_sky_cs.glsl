@@ -3,6 +3,8 @@
 #include "/lib/atmosphere.glsl"
 
 uniform sampler2D depthtex0;
+uniform sampler2D {{IMG_TRANSMIT_LUT_SAMPLER}};
+uniform vec3 sunDirection;
 uniform mat4 gbufferModelViewInverse;
 uniform mat4 gbufferProjectionInverse;
 uniform float eyeAltitude;
@@ -15,15 +17,18 @@ const vec2 workGroupsRender = vec2(0.125, 0.125);
 
 bool tileHasSky(ivec2 tileMin, ivec2 tileMax)
 {
-    for (int y = tileMin.y; y <= tileMax.y; y++) {
-        for (int x = tileMin.x; x <= tileMax.x; x++) {
+    for (int y = tileMin.y; y <= tileMax.y; y++)
+    {
+        for (int x = tileMin.x; x <= tileMax.x; x++)
+        {
             float depth = texelFetch(depthtex0, ivec2(x, y), 0).r;
-            if (depth >= 1.0) {
+            if (depth >= 1.0)
+            {
                 return true;
             }
         }
     }
-    
+
     return false;
 }
 
@@ -32,14 +37,16 @@ void main()
     ivec2 fullRes = ivec2(viewWidth, viewHeight);
     ivec2 skyRes = max(ivec2(1), (fullRes + ivec2(7)) / 8);
     ivec2 pixelCoord = ivec2(gl_GlobalInvocationID.xy);
-    if (any(greaterThanEqual(pixelCoord, skyRes))) {
+    if (any(greaterThanEqual(pixelCoord, skyRes)))
+    {
         return;
     }
 
     ivec2 tileMin = pixelCoord * 8;
     ivec2 tileMax = min(tileMin + ivec2(7), fullRes - ivec2(1));
-    
-    if (!tileHasSky(tileMin, tileMax)) {
+
+    if (!tileHasSky(tileMin, tileMax))
+    {
         imageStore({{IMG_SKY}}, pixelCoord, vec4(0.0));
         return;
     }
@@ -49,7 +56,7 @@ void main()
     vec3 viewPos = (gbufferProjectionInverse * vec4(clipPos, 1.0)).xyz;
     vec3 viewRay = mat3(gbufferModelViewInverse) * viewPos;
 
-    vec3 sky = rgbFromSpectral(computeInscattering(normalize(viewRay.xzy), max((eyeAltitude - 64.0) * 0.02, 0.001)));
+    vec3 sky = rgbFromSpectral(computeInscattering({{IMG_TRANSMIT_LUT_SAMPLER}}, sunDirection, normalize(viewRay.xzy), max((eyeAltitude - 64.0) * 0.02, 0.001)));
     //vec3 sky = RgbFromSpectral(computeInscattering(normalize(viewRay.xzy), max((eyeAltitude - 64.0) * 0.02, 0.001)));$
     imageStore({{IMG_SKY}}, pixelCoord, vec4(sky, 1.0));
 }

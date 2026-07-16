@@ -54,6 +54,7 @@ RT_LIST = [
     RT("RT_SPECULAR",    "RGBA8"),
     RT("RT_LIGHTING0",   "R11F_G11F_B10F"),
     RT("RT_LIGHTING1",   "RGBA8"),
+    RT("RT_BLOOM",       "R11F_G11F_B10F", size="1.505 1.02"),
 ]
 
 
@@ -70,8 +71,6 @@ class IMG:
 
 
 IMG_LIST = [
-    IMG("IMG_BLOOM",        pixel="RGB", image="R11F_G11F_B10F",
-        type_="UNSIGNED_INT_10F_11F_11F_REV", size="2.0 1.0"),
     IMG("IMG_LIGHTING_LUT", image="RGBA16F", relative=False, size="32 2"),
     IMG("IMG_TRANSMIT_LUT", image="RGBA8",   type_="UNSIGNED_BYTE",
         relative=False, size="256 64"),
@@ -88,8 +87,9 @@ IMG_LIST = [
 PIPELINE = {
     "prepare":   ["lighting_lut", "transmit_lut", "atmosphere_lut"],
     "composite": ["mipmap", "lighting_lut",
-                  "composite_bloom_atlas_blur_h",
-                  "composite_bloom_blur_v",
+                  "bloom_atlas",        # .vsh+.gsh+.fsh -> atlas packing only
+                  "bloom_blur_h",       # .csh -> horizontal blur on atlas
+                  "bloom_blur_v",       # .csh -> vertical blur on atlas
                   "bloom", "exposure", "final"],
     "deferred":  ["sky", "lighting", "mipmap"],
 }
@@ -363,6 +363,11 @@ class ShaderBuilder:
                                          SHADERPACK / DIR_PROGRAM / fv.name)
                     _emit_pair(self.tmpl, self.out_world, final,
                                f"{DIR_PROGRAM}/{fv.name}")
+
+                    # Also emit geometry shader if declared in source
+                    if "{{SHADER_GEOM}}" in fv.read_text(encoding="utf-8"):
+                        _emit(self.tmpl, self.out_world, final,
+                              self.tmpl.geom, f"{DIR_PROGRAM}/{fv.name}")
 
                 # {prefix}_{name}_cs.glsl  (compute entry points)
                 cs = self.src_prog / f"{prefix}_{name}_cs.glsl"

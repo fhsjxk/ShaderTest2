@@ -1,3 +1,30 @@
+// ============================================================================
+// composite_bloom  —  从图集双线性采样所有 mip 并合成到场景颜色
+// ============================================================================
+//
+// 对每个屏幕像素：
+//   1. 读取原始场景颜色（RT_BACK mip 0）
+//   2. 从 bloom 图集（RT_BLOOM，书架布局）双线性采样所有 mip 级别（含 mip0）
+//   3. 使用抖动噪声减少色带
+//   4. 将 bloom 叠加到原始颜色，写回 RT_BACK
+//
+// UV 计算对应出血前的内容区（比图集实际像素范围小一圈），
+// 出血像素仅由双线性过滤在内容边界处自然触及，防止跨 mip 出血。
+//
+// 图集布局（书架式，含 1px 出血边，mip0 与 mip1 四边形相邻不重叠）：
+//   ┌─ 出血 ┬──────────────────────┬─ 出血 ┬ 出血 ┬──────────────┐
+//   │        │                      │ (mip0) │(mip1)│   mip1       │  ← y=0 (出血)
+//   │        │       mip0           │        │       │  (vw/2×vh/2) │  ← y=1
+//   │        │     (vw × vh)        │        │       ├──────────────┤
+//   │        │                      │        │       │   mip2       │  ← 继续向下
+//   └────────┴──────────────────────┴────────┴───────┴──────────────┘
+//   x=0      x=1               x=vw+1  x=vw+2  x=vw+3       x=vw+3+mw
+//
+//   mip0 内容区：x ∈ [1, vw+1)，右出血 x=vw+1
+//   mip1+ 内容区：x ∈ [vw+3, vw+3+mw)，左出血 x=vw+2
+//   出血像素位于每个 mip 内容区外围 1px，相邻 mip 出血边紧挨但不重叠
+// ============================================================================
+
 // {{SHADER_COMP}}
 #ifdef {{SHADER_COMP}}
 #include "/lib/common.glsl"
@@ -5,7 +32,7 @@
 
 uniform sampler2D noisetex;
 uniform sampler2D {{RT_BACK}};
-uniform sampler2D {{IMG_BLOOM_SAMPLER}};
+uniform sampler2D {{RT_BLOOM}};
 
 uniform float viewWidth;
 uniform float viewHeight;
@@ -15,88 +42,98 @@ layout(local_size_x = 8, local_size_y = 8, local_size_z = 1) in;
 
 const vec2 workGroupsRender = vec2(1.0, 1.0);
 
-// Final bloom composite step
-// 1. Read original scene color from RT_BACK (mip 0)
-// 2. Read bloom atlas from IMG_BLOOM_SAMPLER (contains blurred, bright-passed mip levels side by side)
-// 3. For each pixel, upsample bloom from all mip levels and accumulate
-// 4. Apply bloom strength and add to original color
-// 5. Write result back to RT_BACK
-
-// Convert screen pixel coordinate to bloom atlas UV for a given mip level.
-// Screen pixel (x, y) maps to continuous mip position (x/2^i, y/2^i).
-// We MUST NOT snap to texel centers — keeping the continuous position lets
-// texture() with GL_LINEAR properly interpolate between adjacent mip texels.
-vec2 screenToBloomAtlasUV(ivec2 pixelCoordinate, int mipLevel, int xOffset, vec2 atlasSize)
-//vec2 screenToBloomAtlasUV(ivec2 pixelCoord, int mipLevel, int xOffset, vec2 atlasSize)$
-{
-    // Continuous position in mip texture space (no floor, no +0.5 snap)
-    vec2 mipPosition = vec2(pixelCoordinate) / exp2(float(mipLevel));
-    // Position in atlas pixel space
-    vec2 atlasPixelPosition = vec2(float(xOffset), 0.0) + mipPosition;
-    return atlasPixelPosition / atlasSize;
-}
-
 void main()
 {
-    ivec2 pixelCoordinate = ivec2(gl_GlobalInvocationID.xy);
-    //ivec2 pixelCoord = ivec2(gl_GlobalInvocationID.xy);$
-    ivec2 fullResolution = ivec2(viewWidth, viewHeight);
-    //ivec2 fullRes = ivec2(viewWidth, viewHeight);$
-    if (any(greaterThanEqual(pixelCoordinate, fullResolution)))
+    ivec2 pixelCoord = ivec2(gl_GlobalInvocationID.xy);
+    ivec2 fullRes    = ivec2(viewWidth, viewHeight);
+
+    if (any(greaterThanEqual(pixelCoord, fullRes)))
     {
         return;
     }
 
-    vec3 color = texelFetch({{RT_BACK}}, pixelCoordinate, 0).rgb;
+    // ── 读取原始场景颜色 ─────────────────────────────────────
+    vec3 color = texelFetch({{RT_BACK}}, pixelCoord, 0).rgb;
 
+    // ── 确定可用的 mip 数量 ──────────────────────────────────
     int totalMipLevels = textureQueryLevels({{RT_BACK}});
-    int usableMipLevels = min(totalMipLevels - 2, BLOOM_MAX_MIPS);
 
-    if (usableMipLevels <= 1)
+    if (totalMipLevels <= 1)
     {
-        // No bloom to apply, pass through
-        imageStore({{IMG_BACK}}, pixelCoordinate, vec4(color, 1.0));
+        imageStore({{IMG_BACK}}, pixelCoord, vec4(color, 1.0));
         return;
     }
 
-    // Dither offset for bloom sample UVs (in atlas pixel units)
-    // Jittering the sample position breaks up banding from quantized mip levels
-    vec2 noiseUv = vec2(pixelCoordinate) / 128.0;
+    // ── 图集参数 ─────────────────────────────────────────────
+    vec2 atlasSize = vec2(textureSize({{RT_BLOOM}}, 0));
+    int vw = int(viewWidth);
+    int vh = int(viewHeight);
+    int rightColumnX = vw + 3;      // mip1+ 内容区起始 x（mip0 quad 右边界 vw+2 + 1px 死空间）
+    int maxMips = findMSB(int(max(viewWidth, viewHeight))) + 1;
+
+    // ── 抖动偏移 ─────────────────────────────────────────────
+    vec2 noiseUv = vec2(pixelCoord) / 128.0;
     vec2 ditherPixels = (texture(noisetex, noiseUv).rg - 0.5);
-    vec2 ditherUv = ditherPixels / vec2(textureSize({{IMG_BLOOM_SAMPLER}}, 0));
+    vec2 ditherUv = ditherPixels / atlasSize;
 
-    // Accumulate bloom from all mip levels in the atlas
-    vec3 bloomAccumulation = vec3(0.0);
-    //vec3 bloomAccum = vec3(0.0);$
-    vec2 atlasSize = vec2(textureSize({{IMG_BLOOM_SAMPLER}}, 0));
+    // ── 遍历所有 mip，双线性采样图集 ─────────────────────────
+    vec3 bloomAccum = vec3(0.0);
 
-    int xOffset = 0;
-    for (int i = 1; i < usableMipLevels; i++)
+    // mip0：内容区 x∈[1, vw+1)，y∈[1, vh+1)
     {
-        ivec2 mipSize = max(ivec2(viewWidth, viewHeight) >> i, ivec2(1));
+        // 屏幕像素映射到 mip0 内容区：屏幕分数 × mip 尺寸 → texel 中心对齐
+        vec2 mipPos = (vec2(pixelCoord) + 0.5) / vec2(viewWidth, viewHeight) * vec2(float(vw), float(vh));
+        vec2 atlasUV = (vec2(1.0, 1.0) + mipPos) / atlasSize;
+        atlasUV += ditherUv;
+        bloomAccum += texture({{RT_BLOOM}}, atlasUV).rgb;
+    }
 
-        // Compute bloom atlas UV for this pixel at this mip level
-        vec2 atlasUV = screenToBloomAtlasUV(pixelCoordinate, i, xOffset, atlasSize);
+    // mip1+：内容区 x∈[rightColumnX, rightColumnX+mw)，y 逐 mip 下移
+    int yOff = 1;   // mip1 内容区起始 y
+    for (int mip = 1; mip < maxMips; mip++)
+    {
+        int mw = max(vw >> mip, 1);
+        int mh = max(vh >> mip, 1);
 
-        // Jitter UV to reduce banding (dither the sample position, not the color)
+        if (min(mw, mh) < 4) break;
+
+        // 屏幕像素映射到 mip N 内容区（用 mw/vw 比例，与 mip 整数取整一致）
+        vec2 mipPos = (vec2(pixelCoord) + 0.5) / vec2(viewWidth, viewHeight) * vec2(float(mw), float(mh));
+
+        // UV 映射到出血前的内容区，mipPos 已包含像素中心偏移
+        vec2 atlasUV = (vec2(float(rightColumnX), float(yOff)) + mipPos) / atlasSize;
         atlasUV += ditherUv;
 
-        // Sample bloom atlas with bilinear filtering for smooth upsampling
-        vec3 bloomSample = texture({{IMG_BLOOM_SAMPLER}}, atlasUV).rgb;
+        bloomAccum += texture({{RT_BLOOM}}, atlasUV).rgb;
 
-        bloomAccumulation += bloomSample;
-
-        xOffset += mipSize.x;
+        // 下一 mip：内容高度 + 2（上下各 1px 出血 + 死空间）
+        yOff += mh + 2;
     }
 
-    // Normalize by number of mip levels and apply bloom strength
-    float bloomWeight = BLOOM_STRENGTH / max(float(usableMipLevels - 1), 1.0);
-    vec3 bloomContribution = bloomAccumulation * bloomWeight;
-    bloomContribution = max(bloomContribution, vec3(0.0));
+    // ── 归一化并应用 bloom 强度 ──────────────────────────────
+    int numMips = min(totalMipLevels, maxMips);
+    // 实际遍历的 mip 数：检查有哪些 mip 尺寸 >= 4
+    int actualMips = 1;  // mip0 始终包含
+    int yCheck = 1;
+    for (int m = 1; m < maxMips; m++)
+    {
+        int mwCheck = max(vw >> m, 1);
+        int mhCheck = max(vh >> m, 1);
+        if (min(mwCheck, mhCheck) >= 4)
+        {
+            actualMips++;
+            yCheck += mhCheck + 2;
+        }
+        else break;
+    }
 
-    // Composite bloom onto original color (additive blending)
-    vec3 finalColor = color + bloomContribution;
+    float bloomWeight = BLOOM_STRENGTH / max(float(actualMips), 1.0);
+    vec3 bloomContrib = bloomAccum * bloomWeight;
+    bloomContrib = max(bloomContrib, vec3(0.0));
 
-    imageStore({{IMG_BACK}}, pixelCoordinate, vec4(finalColor, 1.0));
+    // ── 叠加 bloom（加法混合）─────────────────────────────────
+    vec3 finalColor = color + bloomContrib;
+
+    imageStore({{IMG_BACK}}, pixelCoord, vec4(finalColor, 1.0));
 }
 #endif
