@@ -88,8 +88,8 @@ PIPELINE = {
     "prepare":   ["lighting_lut", "transmit_lut", "atmosphere_lut"],
     "composite": ["mipmap", "lighting_lut",
                   "bloom_atlas",        # .vsh+.gsh+.fsh -> atlas packing only
-                  "bloom_blur_h",       # .csh -> horizontal blur on atlas
-                  "bloom_blur_v",       # .csh -> vertical blur on atlas
+                  "bloom_blur_h",       # .vsh+.fsh -> horizontal blur (buffer flip)
+                  "bloom_blur_v",       # .vsh+.fsh -> vertical blur (buffer flip)
                   "bloom", "exposure", "final"],
     "deferred":  ["sky", "lighting", "mipmap"],
 }
