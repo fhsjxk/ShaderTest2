@@ -17,7 +17,7 @@ void main()
     }
 
     vec2 uv = (vec2(pixelCoordinate) + 0.5) / vec2(lutSize);
-    #if ENABLE_SPECTRAL
+    #ifdef ENABLE_SPECTRAL
     imageStore({{IMG_TRANSMIT_LUT}}, pixelCoordinate, computeTransmittanceLUT(uv));
     #else
     imageStore({{IMG_TRANSMIT_LUT}}, pixelCoordinate, vec4(computeTransmittanceLUT(uv), 1.0));

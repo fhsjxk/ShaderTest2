@@ -1,6 +1,7 @@
 // {{SHADER_FRAG}}
 #ifdef {{SHADER_FRAG}}
 #include "/lib/common.glsl"
+#include "/lib/math.glsl"
 #include "/lib/brdf.glsl"
 
 uniform sampler2D gtexture;

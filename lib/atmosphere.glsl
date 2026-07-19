@@ -3,12 +3,11 @@
 
 /*
  * From https://www.shadertoy.com/view/msXXDS
- * Adapted to RGB for artistic control.
- *
- * All external data passed as parameters (no hidden uniform dependencies).
  */
 
-#include "/lib/common.glsl"
+#include "/lib/math.glsl"
+#include "/lib/color.glsl"
+#include "/lib/options.glsl"
 
 const int TRANSMITTANCE_STEPS    = 32;
 const int INSCATTERING_STEPS     = 32;
@@ -17,15 +16,13 @@ const float PLANET_RADIUS        = 6371.0;
 const float ATMOSPHERE_THICKNESS = 100.0;
 const float ATMOSPHERE_RADIUS    = PLANET_RADIUS + ATMOSPHERE_THICKNESS;
 
-#define ENABLE_SPECTRAL 1
-
-#if ENABLE_SPECTRAL
+#ifdef ENABLE_SPECTRAL
 #define vec34 vec4
 #else
 #define vec34 vec3
 #endif
 
-#if ENABLE_SPECTRAL
+#ifdef ENABLE_SPECTRAL
 const vec4 SUN_RADIANCE                 = vec4(1.68, 1.83, 1.99, 1.31);
 
 const vec4 RAYLEIGH_SCATTERING_BASE     = vec4(6.605e-3, 1.067e-2, 1.842e-2, 3.156e-2);
@@ -33,11 +30,11 @@ const vec4 RAYLEIGH_SCATTERING_BASE     = vec4(6.605e-3, 1.067e-2, 1.842e-2, 3.1
 const vec4 OZONE_ABSORPTION_BASE        = vec4(3.472e-3, 3.914e-3, 1.349e-3, 11.03e-5) * 0.5;
 
 const vec4 AEROSOL_ABSORPTION_BASE      = vec4(0.6) * 0.01;
-const vec4 AEROSOL_SCATTERING_BASE      = vec4(0.9) * 0.02;
+const vec4 AEROSOL_SCATTERING_BASE      = vec4(0.9) * 0.015;
 
 const vec4 GROUND_ALBEDO         = vec4(0.57, 0.45, 0.37, 0.8) * 0.1; // = rgbFromSpectral^-1(vec3(15,45,100)/255)
 #else
-const vec3 SUN_RADIANCE          = vec3(1.24, 1.15, 1.00) * 4.0;
+const vec3 SUN_RADIANCE          = vec3(1.24, 1.15, 1.00) * 6.0;
 
 const vec3 RAYLEIGH_SCATTERING_BASE = vec3(6.6049e-03, 1.2345e-02, 2.9413e-02); // ARPC spectral integral
 //const vec3 RAYLEIGH_SCATTERING_BASE = vec3(5.83e-03, 1.35e-02, 3.62e-02); // UE: vec3(41,95,255)/255 * 0.03624
@@ -54,11 +51,11 @@ const vec3 OZONE_ABSORPTION_BASE = vec3(2.2911e-03, 1.5404e-03, 0.0);
 //const vec3 AEROSOL_ABSORPTION_BASE = mix(vec3(130, 185, 255)/255.0, vec3(1), 0.0) * 0.1;
 ////const vec3 AEROSOL_ABSORPTION_BASE = mix(vec3(0.1, 0.5, 0.8), vec3(0.8), 0.6) * 0.03 * 0.0;
 //const vec3 AEROSOL_ABSORPTION_BASE = mix(vec3(0.1, 0.5, 0.8), vec3(0.8), 0.99) * 0.01;
-const vec3 AEROSOL_ABSORPTION_BASE = vec3(1.0, 1.0, 0.8) * 0.01;
+const vec3 AEROSOL_ABSORPTION_BASE = vec3(1.0, 1.0, 0.6) * 0.01;
 //const vec3 AEROSOL_SCATTERING_BASE = mix(vec3(130, 185, 255)/255.0, vec3(1), 0.1) * 0.6;
 //const vec3 AEROSOL_SCATTERING_BASE = vec3(1.0) * 0.01;
 ////const vec3 AEROSOL_SCATTERING_BASE = mix(vec3(130, 185, 255)/255.0, vec3(1), 0.8) * 0.03;
-const vec3 AEROSOL_SCATTERING_BASE = mix(vec3(130, 145, 255)/255.0, vec3(1), 0.2) * 0.02;
+const vec3 AEROSOL_SCATTERING_BASE = mix(vec3(130, 145, 255)/255.0, vec3(1), 0.3) * 0.015;
 
 //const vec3 GROUND_ALBEDO         = vec3(15, 45, 100)/255.0;
 const vec3 GROUND_ALBEDO         = vec3(0.02, 0.04, 0.12);
@@ -77,20 +74,40 @@ const mat4x3 M = mat4x3(
     8.572844237945445, -11.103384660054624, 117.47585277566478
 );
 
-// ── LUT sampling ─────────────────────────────────────────────
 
-vec34 transmittanceFromLUT(sampler2D transmitLUT, float cosTheta, float normalizedAlt)
+float distanceToTopAtmosphereBoundary(float r, float mu)
 {
-    vec2 uv = vec2(clamp(cosTheta * 0.5 + 0.5, 0.0, 1.0),
-                   clamp(normalizedAlt,      0.0, 1.0));
-    #if ENABLE_SPECTRAL
+    float discriminant = r * r * (mu * mu - 1.0) + ATMOSPHERE_RADIUS * ATMOSPHERE_RADIUS;
+    return clamp(-r * mu + sqrt(max(0.0, discriminant)), 0.0, 1e6);
+}
+
+bool rayIntersectsGround(float r, float mu)
+{
+    return mu < 0.0 && r * r * (mu * mu - 1.0) + PLANET_RADIUS * PLANET_RADIUS >= 0.0;
+}
+
+vec34 transmittanceFromLUT(sampler2D transmitLUT, float r, float mu)
+{
+    if (rayIntersectsGround(r, mu))
+    {
+        return vec34(0.0);
+    }
+
+    float H = sqrt(ATMOSPHERE_RADIUS * ATMOSPHERE_RADIUS - PLANET_RADIUS * PLANET_RADIUS);
+    float rho = sqrt(max(0.0, r * r - PLANET_RADIUS * PLANET_RADIUS));
+    float d = distanceToTopAtmosphereBoundary(r, mu);
+    float d_min = ATMOSPHERE_RADIUS - r;
+    float d_max = rho + H;
+    float x_mu = (d - d_min) / max(d_max - d_min, 1e-6);
+    float x_r = 1.0 - rho / H;
+    vec2 uv = vec2(clamp(x_mu, 0.0, 1.0), clamp(x_r, 0.0, 1.0));
+    #ifdef ENABLE_SPECTRAL
     return texture(transmitLUT, uv);
     #else
     return texture(transmitLUT, uv).rgb;
     #endif
 }
 
-// ── Geometry ─────────────────────────────────────────────────
 
 float raySphereIntersect(vec3 origin, vec3 dir, float radius)
 {
@@ -117,7 +134,7 @@ float aerosolPhase(float cosTheta)
 {
     //return mix(hgPhase(cosTheta, 0.9),hgPhase(cosTheta, 0.7),0.3);
     //return mix(mix(hgPhase(cosTheta, 0.65), hgPhase(cosTheta, 0.85), 0.1), hgPhase(cosTheta, 0.95), 0.03);
-    return mix(mix(hgPhase(cosTheta, 0.55), hgPhase(cosTheta, 0.78), 0.3), hgPhase(cosTheta, 0.96), 0.03);
+    return mix(mix(hgPhase(cosTheta, 0.55), hgPhase(cosTheta, 0.8), 0.35), hgPhase(cosTheta, 0.95), 0.07) * 1.2; // multscatter
     return hgPhase(cosTheta, 0.5);
     return mix(hgPhase(cosTheta, 0.6), hgPhase(cosTheta, 0.95), 0.1);
 }
@@ -163,21 +180,24 @@ vec34 multiScatteringIsotropic(sampler2D transmitLUT, float cosTheta, float norm
 {
     //return vec34(0.0);
     float solidAngle = 2.0 * PI * (1.0 - sqrt(max(0.0, r*r - PLANET_RADIUS*PLANET_RADIUS)) / r);
-    vec34 transToGround = transmittanceFromLUT(transmitLUT, cosTheta, 0.0);
-    vec34 transGroundToSample = transmittanceFromLUT(transmitLUT, 1.0, 0.0) / transmittanceFromLUT(transmitLUT, 1.0, normalizedAlt);
+    vec34 transToGround = transmittanceFromLUT(transmitLUT, PLANET_RADIUS, cosTheta);
+    vec34 transGroundToSample = transmittanceFromLUT(transmitLUT, PLANET_RADIUS, 1.0) / transmittanceFromLUT(transmitLUT, PLANET_RADIUS + normalizedAlt * ATMOSPHERE_THICKNESS, 1.0);
 
     vec34 groundRadiance = (INV_4PI * solidAngle) *
                           (GROUND_ALBEDO / PI) *
                           transToGround * transGroundToSample *
                           max(0.0, cosTheta);
 
+    float aerosolDensity = AEROSOL_BASE_DENSITY * exp(-normalizedAlt * ATMOSPHERE_THICKNESS / AEROSOL_HEIGHT_SCALE);
+
     vec34 approxMulti = 0.015 *
-    #if ENABLE_SPECTRAL
+    #ifdef ENABLE_SPECTRAL
     vec4(0.217, 0.347, 0.594, 1.0)
     #else
     vec3(0.2, 0.3, 1.0)
     #endif
-    / (1.0 + 5.0 * exp(-17.92 * cosTheta)) * 0.7;
+    / (1.0 + 5.0 * exp(-17.92 * cosTheta))
+    / (aerosolDensity + 1.0);
 
     return groundRadiance + approxMulti;
 }
@@ -213,10 +233,21 @@ vec34 computeTransmittance(vec3 origin, vec3 rayDirection)
 
 vec34 computeTransmittanceLUT(vec2 uv)
 {
-    float cosTheta = uv.x * 2.0 - 1.0;
-    vec3 rayDirection = vec3(sqrt(max(0.0, 1.0 - cosTheta * cosTheta)), 0.0, cosTheta);
+    // Bruneton inverse: UV → (r, mu)
+    float H = sqrt(ATMOSPHERE_RADIUS * ATMOSPHERE_RADIUS - PLANET_RADIUS * PLANET_RADIUS);
+    float x_r = 1.0 - uv.y;
+    float rho = H * x_r;
+    float r = sqrt(rho * rho + PLANET_RADIUS * PLANET_RADIUS);
 
-    float r = mix(PLANET_RADIUS, ATMOSPHERE_RADIUS, uv.y);
+    float d_min = ATMOSPHERE_RADIUS - r;
+    float d_max = rho + H;
+    float x_mu = uv.x;
+    float d = d_min + x_mu * (d_max - d_min);
+
+    float mu = (d < 1e-6) ? 1.0 : (H * H - rho * rho - d * d) / (2.0 * r * d);
+    mu = clamp(mu, -1.0, 1.0);
+
+    vec3 rayDirection = vec3(sqrt(max(0.0, 1.0 - mu * mu)), 0.0, mu);
     vec3 origin = vec3(0.0, 0.0, r);
 
     return computeTransmittance(origin, rayDirection);
@@ -273,7 +304,7 @@ vec34 computeInscattering(sampler2D transmitLUT, vec3 sunDirection, vec3 rayDire
         getAtmosphereCoefficients(h, aerosolAbsorption, aerosolScattering,
                                   molecularAbsorption, molecularScattering, ext);
 
-        vec34 transToSun = transmittanceFromLUT(transmitLUT, sunCosTheta, normalizedH);
+        vec34 transToSun = transmittanceFromLUT(transmitLUT, r, sunCosTheta);
 
         vec34 multiIso = multiScatteringIsotropic(transmitLUT, sunCosTheta, normalizedH, r);
 
@@ -305,5 +336,7 @@ vec34 computeAtmosphereLUT(sampler2D transmitLUT, vec3 sunDir, vec2 uv)
 
 vec3 rgbFromSpectral(vec4 L)
 {
-    return M * L * 0.03;
+    return M * L * 0.025;
 }
+
+#endif

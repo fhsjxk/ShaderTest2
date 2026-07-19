@@ -1,6 +1,7 @@
 // {{SHADER_COMP}}
 #ifdef {{SHADER_COMP}}
 #include "/lib/common.glsl"
+#include "/lib/math.glsl"
 #include "/lib/options.glsl"
 #include "/lib/brdf.glsl"
 #include "/lib/color.glsl"
@@ -125,8 +126,8 @@ void main()
     vec2 clipXY = uv * 2.0 - 1.0;
     vec3 viewRay = mat3(gbufferModelViewInverse) * (gbufferProjectionInverse * vec4(clipXY, 1.0, 1.0)).xyz;
 
-    vec34 sunColor = transmittanceFromLUT({{IMG_TRANSMIT_LUT_SAMPLER}}, clamp(sunDirection.y, -1.0, 1.0), 0.0);
-    #if ENABLE_SPECTRAL
+    vec34 sunColor = transmittanceFromLUT({{IMG_TRANSMIT_LUT_SAMPLER}}, PLANET_RADIUS, clamp(sunDirection.y, -1.0, 1.0));
+    #ifdef ENABLE_SPECTRAL
     sunColor.rgb = rgbFromSpectral(sunColor) * 0.2;
     #endif
 
@@ -183,7 +184,7 @@ void main()
     float NoH = max(dot(N, H), 0.0);
     //float spec = specularGTR(NoH, 0.5, 1.5);
     float spec = specularGGX(NoH, 0.7);
-    float f = 0.03 + 0.3 * pow(max(1.0 - max(dot(N, V), 0.001), 0.001), 5.0);
+    float f = 0.03 + 0.2 * pow(max(1.0 - max(dot(N, V), 0.001), 0.001), 5.0);
     vec3 specColor = spec * sunColor.rgb * 3.0 * sunLightAmount * f;
     outColor += specColor;
 

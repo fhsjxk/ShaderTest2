@@ -155,6 +155,7 @@ void main()
 #ifdef {{SHADER_FRAG}}
 #include "/lib/common.glsl"
 #include "/lib/options.glsl"
+#include "/lib/color.glsl"
 
 uniform sampler2D {{RT_BACK}};
 uniform float viewWidth;

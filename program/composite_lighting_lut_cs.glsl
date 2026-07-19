@@ -2,6 +2,7 @@
 #ifdef {{SHADER_COMP}}
 #include "/lib/common.glsl"
 #include "/lib/options.glsl"
+#include "/lib/color.glsl"
 
 uniform float frameTime;
 uniform sampler2D {{RT_BACK}};

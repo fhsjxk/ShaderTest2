@@ -1,6 +1,7 @@
 // {{SHADER_FRAG}}
 #ifdef {{SHADER_FRAG}}
 #include "/lib/common.glsl"
+#include "/lib/math.glsl"
 #include "/lib/options.glsl"
 
 uniform sampler2D gtexture;
@@ -71,6 +72,7 @@ void main()
 // {{SHADER_VERT}}
 #ifdef {{SHADER_VERT}}
 #include "/lib/common.glsl"
+#include "/lib/math.glsl"
 
 uniform mat4 gbufferModelViewInverse;
 
