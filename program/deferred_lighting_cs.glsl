@@ -127,7 +127,7 @@ void main()
 
     vec34 sunColor = transmittanceFromLUT({{IMG_TRANSMIT_LUT_SAMPLER}}, clamp(sunDirection.y, -1.0, 1.0), 0.0);
     #if ENABLE_SPECTRAL
-    sunColor.rgb = rgbFromSpectral(sunColor);
+    sunColor.rgb = rgbFromSpectral(sunColor) * 0.2;
     #endif
 
     if (depth == 1.0)
@@ -135,7 +135,7 @@ void main()
         vec3 dither = (getNoise(uv).rgb - 0.5) * 0.05;
         vec3 sky = texture({{IMG_SKY_SAMPLER}}, uv).rgb;
         sky = sky * (1.0 + dither) + dither * 0.05;
-        sky += float(dot(normalize(viewRay), normalize(sunDirection)) > 0.9999893) * 10.0 * sunColor.rgb;
+        sky += float(dot(normalize(viewRay), normalize(sunDirection)) > 0.9999893) * 100.0 * sunColor.rgb;
         imageStore({{IMG_BACK}}, pixelCoordinate, vec4(sky, 1.0));
         //imageStore({{RT_BACK_IMG}}, pixelCoord, vec4(sky, 1.0));$
         return;
@@ -164,10 +164,10 @@ void main()
     float fakeGIFactor = fakeGI * 0.05 + 0.95;
     vec3 baseAlbedo = adjustSaturationFast(baseColor, fakeGIFactor);
 
-    vec3 diffuseSun = sunLightAmount * (fakeGI * lighting0.g + 3.0 * sunColor.rgb);
+    vec3 diffuseSun = sunLightAmount * (fakeGI * lighting0.g * sunColor.rgb + 3.0 * sunColor.rgb);
 
     vec3 skyColor = vec3(0.4, 0.6, 1.0);
-    vec3 ambientLight = ambientAmount * lighting0.g * lighting0.b * skyColor;
+    vec3 ambientLight = ambientAmount * lighting0.g * lighting0.b * skyColor * (getBrightness(sunColor.rgb) + 0.);
 
     vec3 localLightColor = vec3(1.0, 0.6, 0.2);
     vec3 localLight = pow(lighting0.r, 3.0) * localLightColor * 2.0;
@@ -181,11 +181,12 @@ void main()
     vec3 L = normalize(sunDirection);
     vec3 H = normalize(V + L);
     float NoH = max(dot(N, H), 0.0);
-    float spec = specularGTR(NoH, 0.1, 1.5);
-    vec3 F0 = vec3(0.04);
-    vec3 specColor = mix(F0, baseColor, 0.00) * spec * sunColor.rgb;
+    //float spec = specularGTR(NoH, 0.5, 1.5);
+    float spec = specularGGX(NoH, 0.7);
+    float f = 0.03 + 0.3 * pow(max(1.0 - max(dot(N, V), 0.001), 0.001), 5.0);
+    vec3 specColor = spec * sunColor.rgb * 3.0 * sunLightAmount * f;
     outColor += specColor;
 
-    imageStore({{IMG_BACK}}, pixelCoordinate, vec4(outColor*0.01, 1.0));
+    imageStore({{IMG_BACK}}, pixelCoordinate, vec4(outColor, 1.0));
 }
 #endif

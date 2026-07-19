@@ -17,7 +17,7 @@ const float PLANET_RADIUS        = 6371.0;
 const float ATMOSPHERE_THICKNESS = 100.0;
 const float ATMOSPHERE_RADIUS    = PLANET_RADIUS + ATMOSPHERE_THICKNESS;
 
-#define ENABLE_SPECTRAL 0
+#define ENABLE_SPECTRAL 1
 
 #if ENABLE_SPECTRAL
 #define vec34 vec4
@@ -32,12 +32,12 @@ const vec4 RAYLEIGH_SCATTERING_BASE     = vec4(6.605e-3, 1.067e-2, 1.842e-2, 3.1
 
 const vec4 OZONE_ABSORPTION_BASE        = vec4(3.472e-3, 3.914e-3, 1.349e-3, 11.03e-5) * 0.5;
 
-const vec4 AEROSOL_ABSORPTION_BASE      = vec4(0.6) * 0.005;
-const vec4 AEROSOL_SCATTERING_BASE      = vec4(0.9) * 0.03;
+const vec4 AEROSOL_ABSORPTION_BASE      = vec4(0.6) * 0.01;
+const vec4 AEROSOL_SCATTERING_BASE      = vec4(0.9) * 0.02;
 
-const vec4 GROUND_ALBEDO         = vec4(0.57, 0.45, 0.37, 0.8); // = rgbFromSpectral^-1(vec3(15,45,100)/255)
+const vec4 GROUND_ALBEDO         = vec4(0.57, 0.45, 0.37, 0.8) * 0.1; // = rgbFromSpectral^-1(vec3(15,45,100)/255)
 #else
-const vec3 SUN_RADIANCE          = vec3(1.68, 1.83, 1.99) * 3.0;
+const vec3 SUN_RADIANCE          = vec3(1.24, 1.15, 1.00) * 4.0;
 
 const vec3 RAYLEIGH_SCATTERING_BASE = vec3(6.6049e-03, 1.2345e-02, 2.9413e-02); // ARPC spectral integral
 //const vec3 RAYLEIGH_SCATTERING_BASE = vec3(5.83e-03, 1.35e-02, 3.62e-02); // UE: vec3(41,95,255)/255 * 0.03624
@@ -53,16 +53,18 @@ const vec3 OZONE_ABSORPTION_BASE = vec3(2.2911e-03, 1.5404e-03, 0.0);
 //const vec3 AEROSOL_ABSORPTION_BASE = vec3(1.0) * 0.005;
 //const vec3 AEROSOL_ABSORPTION_BASE = mix(vec3(130, 185, 255)/255.0, vec3(1), 0.0) * 0.1;
 ////const vec3 AEROSOL_ABSORPTION_BASE = mix(vec3(0.1, 0.5, 0.8), vec3(0.8), 0.6) * 0.03 * 0.0;
-const vec3 AEROSOL_ABSORPTION_BASE = mix(vec3(0.1, 0.5, 0.8), vec3(0.8), 0.6) * 0.005;
+//const vec3 AEROSOL_ABSORPTION_BASE = mix(vec3(0.1, 0.5, 0.8), vec3(0.8), 0.99) * 0.01;
+const vec3 AEROSOL_ABSORPTION_BASE = vec3(1.0, 1.0, 0.8) * 0.01;
 //const vec3 AEROSOL_SCATTERING_BASE = mix(vec3(130, 185, 255)/255.0, vec3(1), 0.1) * 0.6;
 //const vec3 AEROSOL_SCATTERING_BASE = vec3(1.0) * 0.01;
 ////const vec3 AEROSOL_SCATTERING_BASE = mix(vec3(130, 185, 255)/255.0, vec3(1), 0.8) * 0.03;
-const vec3 AEROSOL_SCATTERING_BASE = mix(vec3(130, 185, 255)/255.0, vec3(1), 0.7) * 0.03;
+const vec3 AEROSOL_SCATTERING_BASE = mix(vec3(130, 145, 255)/255.0, vec3(1), 0.2) * 0.02;
 
-const vec3 GROUND_ALBEDO         = vec3(15, 45, 100)/255.0;
+//const vec3 GROUND_ALBEDO         = vec3(15, 45, 100)/255.0;
+const vec3 GROUND_ALBEDO         = vec3(0.02, 0.04, 0.12);
 #endif
 
-const float MOLECULAR_HEIGHT_SCALE = 8.696;
+const float MOLECULAR_HEIGHT_SCALE = 8.67;
 
 const float AEROSOL_HEIGHT_SCALE = 1.2;
 const float AEROSOL_TURBIDITY    = 1.0;
@@ -114,7 +116,8 @@ float hgPhase(float cosTheta, float g)
 float aerosolPhase(float cosTheta)
 {
     //return mix(hgPhase(cosTheta, 0.9),hgPhase(cosTheta, 0.7),0.3);
-    return mix(mix(hgPhase(cosTheta, 0.65), hgPhase(cosTheta, 0.85), 0.1), hgPhase(cosTheta, 0.95), 0.03);
+    //return mix(mix(hgPhase(cosTheta, 0.65), hgPhase(cosTheta, 0.85), 0.1), hgPhase(cosTheta, 0.95), 0.03);
+    return mix(mix(hgPhase(cosTheta, 0.55), hgPhase(cosTheta, 0.78), 0.3), hgPhase(cosTheta, 0.96), 0.03);
     return hgPhase(cosTheta, 0.5);
     return mix(hgPhase(cosTheta, 0.6), hgPhase(cosTheta, 0.95), 0.1);
 }
@@ -172,7 +175,7 @@ vec34 multiScatteringIsotropic(sampler2D transmitLUT, float cosTheta, float norm
     #if ENABLE_SPECTRAL
     vec4(0.217, 0.347, 0.594, 1.0)
     #else
-    vec3(0.217, 0.347, 0.594)
+    vec3(0.2, 0.3, 1.0)
     #endif
     / (1.0 + 5.0 * exp(-17.92 * cosTheta)) * 0.7;
 
