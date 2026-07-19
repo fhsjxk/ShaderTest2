@@ -8,6 +8,7 @@
 #include "/lib/options.glsl"
 
 uniform sampler2D {{RT_BLOOM}};
+uniform sampler2D {{RT_BACK}};
 uniform float viewWidth;
 uniform float viewHeight;
 
@@ -68,6 +69,22 @@ void main()
         }
     }
     if (foundMip < 0) { outColor = vec4(0.0, 0.0, 0.0, 1.0); return; }
+
+    // ── RT_BACK mip(foundMip+3) 早期跳过：8×8 区域全黑则跳过模糊 ──
+    /* int checkMip = foundMip + 3;
+    int contentXMin = mipXMin[foundMip] + 1;
+    int contentYMin = mipYMin[foundMip] + 1;
+    int contentW = mipXMax[foundMip] - mipXMin[foundMip] - 2;
+    int contentH = mipYMax[foundMip] - mipYMin[foundMip] - 2;
+    vec2 screenFrac = vec2(float(atlasCoord.x - contentXMin), float(atlasCoord.y - contentYMin))
+                    / vec2(float(contentW), float(contentH));
+    ivec2 rtBackMipSize = textureSize({{RT_BACK}}, checkMip);
+    ivec2 rtBackCoord = ivec2(screenFrac * vec2(rtBackMipSize));
+    vec3 rough = texelFetch({{RT_BACK}}, rtBackCoord, checkMip).rgb;
+    if (getBrightness(rough) < BLOOM_THRESHOLD - BLOOM_KNEE) {
+        outColor = texelFetch({{RT_BLOOM}}, atlasCoord, 0);
+        return;
+    } */
 
     int xMin = mipXMin[foundMip], xMax = mipXMax[foundMip];
     int yMin = mipYMin[foundMip], yMax = mipYMax[foundMip];

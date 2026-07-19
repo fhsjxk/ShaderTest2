@@ -4,7 +4,6 @@
 #include "/lib/options.glsl"
 
 uniform sampler2D {{RT_BACK}};
-uniform sampler2D {{IMG_LIGHTING_LUT_SAMPLER}};
 //uniform sampler2D {{RT_SKY_TEST}};
 uniform sampler2D {{RT_BLOOM}};
 //uniform sampler2D {{IMG_BLOOM_SAMPLER}};$
@@ -48,7 +47,7 @@ void main()
     //color.rgb = texture({{RT_BACK}}, texcoord).rgb;
     #if defined VIGNETTE_AMOUNT && VIGNETTE_AMOUNT != 0.0
     float vignetteMask = texture(vignettetex, texcoord).r * VIGNETTE_AMOUNT + (1.0 - VIGNETTE_AMOUNT);
-    color.rgb *= vignetteMask;
+    //color.rgb *= vignetteMask;
     #endif
 
     //color.rgb = texelFetch(stardirtex, pixelCoordinate, 0).rgb;

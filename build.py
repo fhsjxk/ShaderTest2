@@ -71,7 +71,6 @@ class IMG:
 
 
 IMG_LIST = [
-    IMG("IMG_LIGHTING_LUT", image="RGBA16F", relative=False, size="32 2"),
     IMG("IMG_TRANSMIT_LUT", image="RGBA8",   type_="UNSIGNED_BYTE",
         relative=False, size="256 64"),
     IMG("IMG_SKYVIEW",      image="RGBA16F", relative=False, size="64 64"),
@@ -199,7 +198,6 @@ def build_template_vars() -> TemplateEngine:
     for st in ("SHADER_COMP", "SHADER_FRAG", "SHADER_VERT", "SHADER_GEOM"):
         tmpl.add("{{" + st + "}}", st)
 
-    tmpl.add("{{POS_LIGHTING_LUT_VALUE}}", "11, 0")
     tmpl.freeze()
     return tmpl
 

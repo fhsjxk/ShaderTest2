@@ -1,6 +1,6 @@
 // {{SHADER_COMP}}
 #ifdef {{SHADER_COMP}}
-#include "/lib/atmosphere.glsl"
+//#include "/lib/atmosphere.glsl"
 
 //layout({{IMG_ATMOSPHERE_LUT_FORMAT}}) uniform writeonly image2D {{IMG_ATMOSPHERE_LUT}};
 layout(local_size_x = 8, local_size_y = 8, local_size_z = 1) in;

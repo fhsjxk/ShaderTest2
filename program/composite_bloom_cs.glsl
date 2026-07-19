@@ -76,37 +76,39 @@ void main()
     vec2 ditherPixels = (texture(noisetex, noiseUv).rg - 0.5);
     vec2 ditherUv = ditherPixels / atlasSize;
 
-    // ── 遍历所有 mip，双线性采样图集 ─────────────────────────
+    // ── 类双三次上采样：每 mip 取 4 点 offset，平滑 bloom ────
     vec3 bloomAccum = vec3(0.0);
 
     // mip0：内容区 x∈[1, vw+1)，y∈[1, vh+1)
     {
-        // 屏幕像素映射到 mip0 内容区：屏幕分数 × mip 尺寸 → texel 中心对齐
         vec2 mipPos = (vec2(pixelCoord) + 0.5) / vec2(viewWidth, viewHeight) * vec2(float(vw), float(vh));
-        vec2 atlasUV = (vec2(1.0, 1.0) + mipPos) / atlasSize;
-        atlasUV += ditherUv;
-        bloomAccum += texture({{RT_BLOOM}}, atlasUV).rgb;
+        vec2 baseUV = (vec2(1.0, 1.0) + mipPos) / atlasSize;
+        vec3 s = vec3(0.0);
+        s += texture({{RT_BLOOM}}, baseUV + vec2(-0.25, -0.25) / atlasSize + ditherUv).rgb;
+        s += texture({{RT_BLOOM}}, baseUV + vec2( 0.25, -0.25) / atlasSize + ditherUv).rgb;
+        s += texture({{RT_BLOOM}}, baseUV + vec2(-0.25,  0.25) / atlasSize + ditherUv).rgb;
+        s += texture({{RT_BLOOM}}, baseUV + vec2( 0.25,  0.25) / atlasSize + ditherUv).rgb;
+        bloomAccum += s * 0.25;
     }
 
     // mip1+：内容区 x∈[rightColumnX, rightColumnX+mw)，y 逐 mip 下移
-    int yOff = 1;   // mip1 内容区起始 y
+    int yOff = 1;
     for (int mip = 1; mip < maxMips; mip++)
     {
         int mw = max(vw >> mip, 1);
         int mh = max(vh >> mip, 1);
-
         if (min(mw, mh) < 4) break;
 
-        // 屏幕像素映射到 mip N 内容区（用 mw/vw 比例，与 mip 整数取整一致）
         vec2 mipPos = (vec2(pixelCoord) + 0.5) / vec2(viewWidth, viewHeight) * vec2(float(mw), float(mh));
+        vec2 baseUV = (vec2(float(rightColumnX), float(yOff)) + mipPos) / atlasSize;
 
-        // UV 映射到出血前的内容区，mipPos 已包含像素中心偏移
-        vec2 atlasUV = (vec2(float(rightColumnX), float(yOff)) + mipPos) / atlasSize;
-        atlasUV += ditherUv;
+        vec3 s = vec3(0.0);
+        s += texture({{RT_BLOOM}}, baseUV + vec2(-0.25, -0.25) / atlasSize + ditherUv).rgb;
+        s += texture({{RT_BLOOM}}, baseUV + vec2( 0.25, -0.25) / atlasSize + ditherUv).rgb;
+        s += texture({{RT_BLOOM}}, baseUV + vec2(-0.25,  0.25) / atlasSize + ditherUv).rgb;
+        s += texture({{RT_BLOOM}}, baseUV + vec2( 0.25,  0.25) / atlasSize + ditherUv).rgb;
+        bloomAccum += s * 0.25;
 
-        bloomAccum += texture({{RT_BLOOM}}, atlasUV).rgb;
-
-        // 下一 mip：内容高度 + 2（上下各 1px 出血 + 死空间）
         yOff += mh + 2;
     }
 
@@ -127,7 +129,8 @@ void main()
         else break;
     }
 
-    float bloomWeight = BLOOM_STRENGTH / max(float(actualMips), 1.0);
+    //float bloomWeight = 1.0 / max(float(actualMips), 1.0) / BLOOM_THRESHOLD;
+    float bloomWeight = BLOOM_THRESHOLD / max(float(actualMips), 1.0);
     vec3 bloomContrib = bloomAccum * bloomWeight;
     bloomContrib = max(bloomContrib, vec3(0.0));
 

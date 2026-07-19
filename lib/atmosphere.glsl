@@ -1,9 +1,11 @@
+#ifndef ATMOSPHERE
+#define ATMOSPHERE
+
 /*
  * From https://www.shadertoy.com/view/msXXDS
+ * Adapted to RGB for artistic control.
  *
- * NOTE: sampler2D {{IMG_TRANSMIT_LUT_SAMPLER}} is needed as a parameter
- * for functions that sample the LUT. sunDirection is a parameter for
- * computeInscattering. Both must be declared as uniform at the call site.
+ * All external data passed as parameters (no hidden uniform dependencies).
  */
 
 #include "/lib/common.glsl"
@@ -11,31 +13,82 @@
 const int TRANSMITTANCE_STEPS    = 32;
 const int INSCATTERING_STEPS     = 32;
 
-const float PLANET_RADIUS               = 6371.0;
-const float ATMOSPHERE_THICKNESS        = 100.0;
-const float ATMOSPHERE_RADIUS           = PLANET_RADIUS + ATMOSPHERE_THICKNESS;
+const float PLANET_RADIUS        = 6371.0;
+const float ATMOSPHERE_THICKNESS = 100.0;
+const float ATMOSPHERE_RADIUS    = PLANET_RADIUS + ATMOSPHERE_THICKNESS;
 
+#define ENABLE_SPECTRAL 0
+
+#if ENABLE_SPECTRAL
+#define vec34 vec4
+#else
+#define vec34 vec3
+#endif
+
+#if ENABLE_SPECTRAL
 const vec4 SUN_RADIANCE                 = vec4(1.68, 1.83, 1.99, 1.31);
 
 const vec4 RAYLEIGH_SCATTERING_BASE     = vec4(6.605e-3, 1.067e-2, 1.842e-2, 3.156e-2);
 
-const vec4 OZONE_ABSORPTION_BASE        = vec4(3.472e-21, 3.914e-21, 1.349e-21, 11.03e-23) * 1e-4f;
+const vec4 OZONE_ABSORPTION_BASE        = vec4(3.472e-3, 3.914e-3, 1.349e-3, 11.03e-5) * 0.5;
 
-const vec4 AEROSOL_ABSORPTION_BASE      = vec4(1.0e-22);
-const vec4 AEROSOL_SCATTERING_BASE      = vec4(1.5e-22);
+const vec4 AEROSOL_ABSORPTION_BASE      = vec4(0.6) * 0.005;
+const vec4 AEROSOL_SCATTERING_BASE      = vec4(0.9) * 0.03;
+
+const vec4 GROUND_ALBEDO         = vec4(0.57, 0.45, 0.37, 0.8); // = rgbFromSpectral^-1(vec3(15,45,100)/255)
+#else
+const vec3 SUN_RADIANCE          = vec3(1.68, 1.83, 1.99) * 3.0;
+
+const vec3 RAYLEIGH_SCATTERING_BASE = vec3(6.6049e-03, 1.2345e-02, 2.9413e-02); // ARPC spectral integral
+//const vec3 RAYLEIGH_SCATTERING_BASE = vec3(5.83e-03, 1.35e-02, 3.62e-02); // UE: vec3(41,95,255)/255 * 0.03624
+//const vec3 RAYLEIGH_SCATTERING_BASE = vec3(4.5e-03, 1.8e-02, 4.0e-02);
+//const vec3 RAYLEIGH_SCATTERING_BASE = vec3(41,95,255)/255.0 * 0.03624;
+
+const vec3 OZONE_ABSORPTION_BASE = vec3(2.2911e-03, 1.5404e-03, 0.0);
+//const vec3 OZONE_ABSORPTION_BASE = vec3(0);
+
+//const vec3 AEROSOL_ABSORPTION_BASE = vec3(255, 255, 85)/255.0 * 0.015;
+//const vec3 AEROSOL_ABSORPTION_BASE = vec3(1.0) * 0.005;
+//const vec3 AEROSOL_ABSORPTION_BASE = vec3(0.05, 0.25, 0.5) * 0.01;
+//const vec3 AEROSOL_ABSORPTION_BASE = vec3(1.0) * 0.005;
+//const vec3 AEROSOL_ABSORPTION_BASE = mix(vec3(130, 185, 255)/255.0, vec3(1), 0.0) * 0.1;
+////const vec3 AEROSOL_ABSORPTION_BASE = mix(vec3(0.1, 0.5, 0.8), vec3(0.8), 0.6) * 0.03 * 0.0;
+const vec3 AEROSOL_ABSORPTION_BASE = mix(vec3(0.1, 0.5, 0.8), vec3(0.8), 0.6) * 0.005;
+//const vec3 AEROSOL_SCATTERING_BASE = mix(vec3(130, 185, 255)/255.0, vec3(1), 0.1) * 0.6;
+//const vec3 AEROSOL_SCATTERING_BASE = vec3(1.0) * 0.01;
+////const vec3 AEROSOL_SCATTERING_BASE = mix(vec3(130, 185, 255)/255.0, vec3(1), 0.8) * 0.03;
+const vec3 AEROSOL_SCATTERING_BASE = mix(vec3(130, 185, 255)/255.0, vec3(1), 0.7) * 0.03;
+
+const vec3 GROUND_ALBEDO         = vec3(15, 45, 100)/255.0;
+#endif
+
+const float MOLECULAR_HEIGHT_SCALE = 8.696;
 
 const float AEROSOL_HEIGHT_SCALE = 1.2;
 const float AEROSOL_TURBIDITY    = 1.0;
-const float AEROSOL_BASE_DENSITY = 1.37e20;
+const float AEROSOL_BASE_DENSITY = 1.0;
 
-const vec4 GROUND_ALBEDO         = vec4(0.3);
+const mat4x3 M = mat4x3(
+    137.672389239975, -8.632904716299537, -1.7181567391931372,
+    32.549094028629234, 91.29801417199785, -12.005406444382531,
+    -38.91428392614275, 34.31665471469816, 29.89044807197628,
+    8.572844237945445, -11.103384660054624, 117.47585277566478
+);
 
-vec4 transmittanceFromLUT(sampler2D transmitLUT, float cosTheta, float normalizedAlt)
+// ── LUT sampling ─────────────────────────────────────────────
+
+vec34 transmittanceFromLUT(sampler2D transmitLUT, float cosTheta, float normalizedAlt)
 {
     vec2 uv = vec2(clamp(cosTheta * 0.5 + 0.5, 0.0, 1.0),
                    clamp(normalizedAlt,      0.0, 1.0));
-    return texture(transmitLUT, uv).rgba;
+    #if ENABLE_SPECTRAL
+    return texture(transmitLUT, uv);
+    #else
+    return texture(transmitLUT, uv).rgb;
+    #endif
 }
+
+// ── Geometry ─────────────────────────────────────────────────
 
 float raySphereIntersect(vec3 origin, vec3 dir, float radius)
 {
@@ -49,6 +102,8 @@ float raySphereIntersect(vec3 origin, vec3 dir, float radius)
     return (t0 >= 0.0) ? t0 : ((t1 >= 0.0) ? t1 : -1.0);
 }
 
+// ── Phase functions ──────────────────────────────────────────
+
 float hgPhase(float cosTheta, float g)
 {
     float g2 = g * g;
@@ -58,6 +113,9 @@ float hgPhase(float cosTheta, float g)
 
 float aerosolPhase(float cosTheta)
 {
+    //return mix(hgPhase(cosTheta, 0.9),hgPhase(cosTheta, 0.7),0.3);
+    return mix(mix(hgPhase(cosTheta, 0.65), hgPhase(cosTheta, 0.85), 0.1), hgPhase(cosTheta, 0.95), 0.03);
+    return hgPhase(cosTheta, 0.5);
     return mix(hgPhase(cosTheta, 0.6), hgPhase(cosTheta, 0.95), 0.1);
 }
 
@@ -66,12 +124,16 @@ float rayleighPhase(float cosTheta)
     return (3.0 / (16.0 * PI)) * (1.0 + cosTheta * cosTheta);
 }
 
-void getAtmosphereCoefficients(float h,
-                              out vec4 aerosolAbsorption,
-                              out vec4 aerosolScattering,
-                              out vec4 molecularAbsorption,
-                              out vec4 molecularScattering,
-                              out vec4 extinction)
+// ── Atmospheric coefficients ─────────────────────────────────
+
+void getAtmosphereCoefficients(
+    float h,
+    out vec34 aerosolAbsorption,
+    out vec34 aerosolScattering,
+    out vec34 molecularAbsorption,
+    out vec34 molecularScattering,
+    out vec34 extinction
+)
 {
     h = max(h, 0.0);
 
@@ -80,50 +142,52 @@ void getAtmosphereCoefficients(float h,
     aerosolAbsorption  = AEROSOL_ABSORPTION_BASE  * aerosolDensity * AEROSOL_TURBIDITY;
     aerosolScattering  = AEROSOL_SCATTERING_BASE  * aerosolDensity * AEROSOL_TURBIDITY;
 
-    molecularScattering = RAYLEIGH_SCATTERING_BASE * exp(-0.07771971 * pow(h + 1.0, 1.16364243));
+    molecularScattering = RAYLEIGH_SCATTERING_BASE * exp(-h / MOLECULAR_HEIGHT_SCALE);
 
-    float t = log(h + 1e-4) - 3.22261;
-    float ozoneDensity = 3.78547397e20 / (h + 1e-4) * exp(-t * t * 5.55555555);
-    molecularAbsorption = OZONE_ABSORPTION_BASE * 300.0 * ozoneDensity;
+    // Ozone: Gaussian profile centered at LayerBase + LayerThickness/2
+    const float ozonePeak = 22.35;
+    const float ozoneHalfThickness = 35.66 * 0.5;
+    float ozoneDensity = max(1.0 - abs(h - ozonePeak) / ozoneHalfThickness, 0.0);
+    molecularAbsorption = OZONE_ABSORPTION_BASE * ozoneDensity;
     molecularAbsorption += 1e-3 * exp(-0.07771971 * pow(h + 1.0, 1.16364243));
 
     extinction = aerosolAbsorption + aerosolScattering + molecularAbsorption + molecularScattering;
 }
 
-vec4 multiScatteringIsotropic(sampler2D transmitLUT, float cosTheta, float normalizedAlt, float r)
-{
-    float solidAngle = 2.0 * PI * (1.0 - sqrt(max(0.0, r*r - PLANET_RADIUS*PLANET_RADIUS)) / r);
-    vec4 transToGround = transmittanceFromLUT(transmitLUT, cosTheta, 0.0);
-    vec4 transGroundToSample = transmittanceFromLUT(transmitLUT, 1.0, 0.0) / transmittanceFromLUT(transmitLUT, 1.0, normalizedAlt);
+// ── Multiple scattering ──────────────────────────────────────
 
-    vec4 groundRadiance = (INV_4PI * solidAngle) *
+vec34 multiScatteringIsotropic(sampler2D transmitLUT, float cosTheta, float normalizedAlt, float r)
+{
+    //return vec34(0.0);
+    float solidAngle = 2.0 * PI * (1.0 - sqrt(max(0.0, r*r - PLANET_RADIUS*PLANET_RADIUS)) / r);
+    vec34 transToGround = transmittanceFromLUT(transmitLUT, cosTheta, 0.0);
+    vec34 transGroundToSample = transmittanceFromLUT(transmitLUT, 1.0, 0.0) / transmittanceFromLUT(transmitLUT, 1.0, normalizedAlt);
+
+    vec34 groundRadiance = (INV_4PI * solidAngle) *
                           (GROUND_ALBEDO / PI) *
                           transToGround * transGroundToSample *
                           max(0.0, cosTheta);
 
-    vec4 approxMulti = 0.015 * vec4(0.217, 0.347, 0.594, 1.0) /
-                       (1.0 + 5.0 * exp(-17.92 * cosTheta)) * 0.7;
+    vec34 approxMulti = 0.015 *
+    #if ENABLE_SPECTRAL
+    vec4(0.217, 0.347, 0.594, 1.0)
+    #else
+    vec3(0.217, 0.347, 0.594)
+    #endif
+    / (1.0 + 5.0 * exp(-17.92 * cosTheta)) * 0.7;
 
     return groundRadiance + approxMulti;
 }
 
-vec4 multiScatteringAnisotropic(float cosTheta, float h)
-{
-    float phase = mix(hgPhase(cosTheta, 0.6), hgPhase(cosTheta, 0.95), 0.03);
-    vec4 molecularScattering = RAYLEIGH_SCATTERING_BASE;
-    return 1 * molecularScattering * phase * AEROSOL_TURBIDITY * AEROSOL_BASE_DENSITY * exp(-h / AEROSOL_HEIGHT_SCALE) * 1.5e-19;
-}
+// ── Transmittance ────────────────────────────────────────────
 
-vec4 computeTransmittance(vec3 origin, vec3 rayDirection)
+vec34 computeTransmittance(vec3 origin, vec3 rayDirection)
 {
     float rayLength = raySphereIntersect(origin, rayDirection, ATMOSPHERE_RADIUS);
-    if (rayLength < 0.0)
-    {
-        return vec4(1.0);
-    }
+    if (rayLength < 0.0) return vec34(1.0);
 
     float dt = rayLength / float(TRANSMITTANCE_STEPS);
-    vec4 opticalDepth = vec4(0.0);
+    vec34 opticalDepth = vec34(0.0);
 
     for (int i = 0; i < TRANSMITTANCE_STEPS; ++i)
     {
@@ -131,11 +195,12 @@ vec4 computeTransmittance(vec3 origin, vec3 rayDirection)
         vec3 p = origin + rayDirection * t;
         float h = length(p) - PLANET_RADIUS;
 
-        vec4 molecularAbsorption, molecularScattering;
-        vec4 aerosolAbsorption, aerosolScattering;
-        vec4 extinction;
+        vec34 aerosolAbsorption, aerosolScattering;
+        vec34 molecularAbsorption, molecularScattering;
+        vec34 extinction;
 
-        getAtmosphereCoefficients(h, aerosolAbsorption, aerosolScattering, molecularAbsorption, molecularScattering, extinction);
+        getAtmosphereCoefficients(h, aerosolAbsorption, aerosolScattering,
+                                  molecularAbsorption, molecularScattering, extinction);
 
         opticalDepth += extinction * dt;
     }
@@ -143,7 +208,7 @@ vec4 computeTransmittance(vec3 origin, vec3 rayDirection)
     return exp(-opticalDepth);
 }
 
-vec4 computeTransmittanceLUT(vec2 uv)
+vec34 computeTransmittanceLUT(vec2 uv)
 {
     float cosTheta = uv.x * 2.0 - 1.0;
     vec3 rayDirection = vec3(sqrt(max(0.0, 1.0 - cosTheta * cosTheta)), 0.0, cosTheta);
@@ -154,39 +219,41 @@ vec4 computeTransmittanceLUT(vec2 uv)
     return computeTransmittance(origin, rayDirection);
 }
 
-vec4 computeInscattering(sampler2D transmitLUT, vec3 sunDirection, vec3 rayDirection, float altitude)
+// ── Inscattering ─────────────────────────────────────────────
+
+vec34 computeInscattering(sampler2D transmitLUT, vec3 sunDirection, vec3 rayDirection, float altitude)
 {
     vec3 rayOrigin = vec3(0.0, 0.0, PLANET_RADIUS + altitude);
-    vec3 sunDirectionNormalized = normalize(sunDirection.xzy);
+    vec3 sunDirN = normalize(sunDirection.xzy);
 
-    float cosTheta = dot(rayDirection, sunDirectionNormalized);
+    float cosTheta = dot(rayDirection, sunDirN);
 
-    float atmosphereDistance = raySphereIntersect(rayOrigin, rayDirection, ATMOSPHERE_RADIUS);
-    float groundDistance = raySphereIntersect(rayOrigin, rayDirection, PLANET_RADIUS);
+    float atmosphereDist = raySphereIntersect(rayOrigin, rayDirection, ATMOSPHERE_RADIUS);
+    float groundDist = raySphereIntersect(rayOrigin, rayDirection, PLANET_RADIUS);
 
     float rayLength = 0.0;
-    bool insideAtmosphere = (length(rayOrigin) <= ATMOSPHERE_RADIUS);
+    bool inside = (length(rayOrigin) <= ATMOSPHERE_RADIUS);
 
-    if (insideAtmosphere)
+    if (inside)
     {
-        rayLength = (groundDistance > 0.0) ? groundDistance : atmosphereDistance;
+        rayLength = (groundDist > 0.0) ? groundDist : atmosphereDist;
     }
-    else if (atmosphereDistance > 0.0)
+    else if (atmosphereDist > 0.0)
     {
-        rayOrigin += rayDirection * (atmosphereDistance + 1e-4);
-        float secondAtmosphereDistance = raySphereIntersect(rayOrigin, rayDirection, ATMOSPHERE_RADIUS);
-        rayLength = (groundDistance > 0.0) ? (groundDistance - atmosphereDistance) : secondAtmosphereDistance;
+        rayOrigin += rayDirection * (atmosphereDist + 1e-4);
+        float secondDist = raySphereIntersect(rayOrigin, rayDirection, ATMOSPHERE_RADIUS);
+        rayLength = (groundDist > 0.0) ? (groundDist - atmosphereDist) : secondDist;
     }
 
-    if (rayLength <= 0.0) return vec4(0.0);
+    if (rayLength <= 0.0) return vec34(0.0);
 
     float dt = rayLength / float(INSCATTERING_STEPS);
 
-    vec4 L = vec4(0.0);
-    vec4 T = vec4(1.0);
+    vec34 L = vec34(0.0);
+    vec34 T = vec34(1.0);
 
-    float rayleighPhaseValue = rayleighPhase(-cosTheta);
-    float aerosolPhaseValue  = aerosolPhase(-cosTheta);
+    float rayleighPhaseVal = rayleighPhase(-cosTheta);
+    float aerosolPhaseVal  = aerosolPhase(-cosTheta);
 
     for (int i = 0; i < INSCATTERING_STEPS; ++i)
     {
@@ -197,23 +264,24 @@ vec4 computeInscattering(sampler2D transmitLUT, vec3 sunDirection, vec3 rayDirec
         float h = r - PLANET_RADIUS;
         float normalizedH = h / ATMOSPHERE_THICKNESS;
 
-        float sunCosTheta = dot(p / r, sunDirectionNormalized);
+        float sunCosTheta = dot(p / r, sunDirN);
 
-        vec4 aerosolAbsorption, aerosolScattering, molecularAbsorption, molecularScattering, ext;
-        getAtmosphereCoefficients(h, aerosolAbsorption, aerosolScattering, molecularAbsorption, molecularScattering, ext);
+        vec34 aerosolAbsorption, aerosolScattering, molecularAbsorption, molecularScattering, ext;
+        getAtmosphereCoefficients(h, aerosolAbsorption, aerosolScattering,
+                                  molecularAbsorption, molecularScattering, ext);
 
-        vec4 transToSun = transmittanceFromLUT(transmitLUT, sunCosTheta, normalizedH);
+        vec34 transToSun = transmittanceFromLUT(transmitLUT, sunCosTheta, normalizedH);
 
-        vec4 multiIso = multiScatteringIsotropic(transmitLUT, sunCosTheta, normalizedH, r);
-        vec4 multiAni = multiScatteringAnisotropic(-cosTheta, h) * transToSun;
+        vec34 multiIso = multiScatteringIsotropic(transmitLUT, sunCosTheta, normalizedH, r);
 
-        vec4 singleScattering = (molecularScattering * rayleighPhaseValue + aerosolScattering * aerosolPhaseValue) * transToSun;
-        vec4 multiScattering  = (multiIso + multiAni) * (molecularScattering + aerosolScattering);
+        vec34 singleScatter = (molecularScattering * rayleighPhaseVal
+                            + aerosolScattering   * aerosolPhaseVal) * transToSun;
+        vec34 multiScatter  = multiIso * (molecularScattering + aerosolScattering);
 
-        vec4 source = SUN_RADIANCE * (singleScattering + multiScattering);
+        vec34 source = SUN_RADIANCE * (singleScatter + multiScatter);
 
-        vec4 stepT = exp(-ext * dt);
-        vec4 integrated = (source - source * stepT) / max(ext, vec4(1e-6));
+        vec34 stepT = exp(-ext * dt);
+        vec34 integrated = (source - source * stepT) / max(ext, vec34(1e-6));
 
         L += T * integrated;
         T *= stepT;
@@ -222,7 +290,7 @@ vec4 computeInscattering(sampler2D transmitLUT, vec3 sunDirection, vec3 rayDirec
     return L;
 }
 
-vec4 computeAtmosphereLUT(sampler2D transmitLUT, vec3 sunDir, vec2 uv)
+vec34 computeAtmosphereLUT(sampler2D transmitLUT, vec3 sunDir, vec2 uv)
 {
     float cosTheta = uv.x * 2.0 - 1.0;
     vec3 rayDirection = vec3(sqrt(max(0.0, 1.0 - cosTheta * cosTheta)), 0.0, cosTheta);
@@ -232,14 +300,7 @@ vec4 computeAtmosphereLUT(sampler2D transmitLUT, vec3 sunDir, vec2 uv)
     return computeInscattering(transmitLUT, sunDir, rayDirection, r);
 }
 
-const mat4x3 M = mat4x3(
-    137.672389239975, -8.632904716299537, -1.7181567391931372,
-    32.549094028629234, 91.29801417199785, -12.005406444382531,
-    -38.91428392614275, 34.31665471469816, 29.89044807197628,
-    8.572844237945445, -11.103384660054624, 117.47585277566478
-);
-
 vec3 rgbFromSpectral(vec4 L)
 {
-    return M * L * 0.04;
+    return M * L * 0.03;
 }

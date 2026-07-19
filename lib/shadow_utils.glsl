@@ -2,7 +2,6 @@
 #define SHADOW_UTILS
 
 vec3 distortShadowClipPos(vec3 shadowClipPosition)
-//vec3 distortShadowClipPos(vec3 shadowClipPos)$
 {
     float distortionFactor = length(shadowClipPosition.xy);
     distortionFactor += 0.1;

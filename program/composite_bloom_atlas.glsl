@@ -182,6 +182,18 @@ void main()
 
     // ── texelFetch 采样源纹理 ─────────────────────────────────
     vec4 color = texelFetch({{RT_BACK}}, contentCoord, mipLevel);
+
+    // ── 阈值过滤：仅保留亮部用于 bloom ───────────────────────
+    float brightness = getBrightness(color.rgb);
+    float t = BLOOM_THRESHOLD;
+    float k = max(BLOOM_KNEE, 0.001);
+    float weight = smoothstep(t - k, t + k, brightness) * (1.0 - BLOOM_MIN) + BLOOM_MIN;
+    color.rgb *= weight;
+
+    // ── 分辨率自适应的 mip 强度（相同像素尺寸 → 相同强度）─────
+    //float intensity = sqrt(float(mw) * float(mh)) / 63106.0 / (mipLevel + 0.01) + 1.0 ;
+    //color.rgb *= intensity;
+
     outColor = vec4(color.rgb, 1.0);
 }
 #endif

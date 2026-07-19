@@ -2,7 +2,10 @@
 #ifdef {{SHADER_COMP}}
 #include "/lib/common.glsl"
 #include "/lib/options.glsl"
+#include "/lib/brdf.glsl"
+#include "/lib/color.glsl"
 #include "/lib/shadow_utils.glsl"
+#include "/lib/atmosphere.glsl"
 
 uniform sampler2D depthtex0;
 uniform sampler2D shadowtex1;
@@ -12,6 +15,7 @@ uniform sampler2D {{RT_BASE_COLOR}};
 uniform sampler2D {{RT_NORMAL}};
 uniform sampler2D {{RT_LIGHTING0}};
 uniform sampler2D {{IMG_SKY_SAMPLER}};
+uniform sampler2D {{IMG_TRANSMIT_LUT_SAMPLER}};
 uniform sampler2D noisetex;
 
 uniform mat4 gbufferModelViewInverse;
@@ -121,12 +125,17 @@ void main()
     vec2 clipXY = uv * 2.0 - 1.0;
     vec3 viewRay = mat3(gbufferModelViewInverse) * (gbufferProjectionInverse * vec4(clipXY, 1.0, 1.0)).xyz;
 
+    vec34 sunColor = transmittanceFromLUT({{IMG_TRANSMIT_LUT_SAMPLER}}, clamp(sunDirection.y, -1.0, 1.0), 0.0);
+    #if ENABLE_SPECTRAL
+    sunColor.rgb = rgbFromSpectral(sunColor);
+    #endif
+
     if (depth == 1.0)
     {
         vec3 dither = (getNoise(uv).rgb - 0.5) * 0.05;
         vec3 sky = texture({{IMG_SKY_SAMPLER}}, uv).rgb;
         sky = sky * (1.0 + dither) + dither * 0.05;
-        sky += float(dot(normalize(viewRay), normalize(sunDirection)) > 0.9999) * 1000.0;
+        sky += float(dot(normalize(viewRay), normalize(sunDirection)) > 0.9999893) * 10.0 * sunColor.rgb;
         imageStore({{IMG_BACK}}, pixelCoordinate, vec4(sky, 1.0));
         //imageStore({{RT_BACK_IMG}}, pixelCoord, vec4(sky, 1.0));$
         return;
@@ -148,23 +157,35 @@ void main()
     //vec4 shadowClipPos = shadowProjection * vec4(shadowViewPos, 1.0);$
 
     vec3 shadow = getSoftShadow(shadowClipPosition, uv);
+    //shadow = vec3(1);
     float sunLightAmount = min(normal.a, float(shadow));
 
     float fakeGI = 1.0 + (1.0 - lighting0.b) * (1.0 - normal.a) * float(shadow) * 3.0;
     float fakeGIFactor = fakeGI * 0.05 + 0.95;
     vec3 baseAlbedo = adjustSaturationFast(baseColor, fakeGIFactor);
 
-    vec3 sunColor = vec3(0.95, 0.88, 0.84);
-    vec3 diffuseSun = sunLightAmount * (fakeGI * lighting0.g + 3.0 * sunColor);
+    vec3 diffuseSun = sunLightAmount * (fakeGI * lighting0.g + 3.0 * sunColor.rgb);
 
     vec3 skyColor = vec3(0.4, 0.6, 1.0);
     vec3 ambientLight = ambientAmount * lighting0.g * lighting0.b * skyColor;
 
     vec3 localLightColor = vec3(1.0, 0.6, 0.2);
-    vec3 localLight = pow(lighting0.r, 3.0) * localLightColor * 5.0;
+    vec3 localLight = pow(lighting0.r, 3.0) * localLightColor * 2.0;
 
     const float masterGain = 0.6;
     vec3 outColor = baseAlbedo * (diffuseSun + ambientLight + localLight) * masterGain;
-    imageStore({{IMG_BACK}}, pixelCoordinate, vec4(outColor, 1.0));
+
+    // ── GGX 高光（粗糙度 0.2）─────────────────────────────────
+    vec3 N = normalize(normal.xyz * 2.0 - 1.0);
+    vec3 V = mat3(gbufferModelViewInverse) * normalize(-viewPosition);
+    vec3 L = normalize(sunDirection);
+    vec3 H = normalize(V + L);
+    float NoH = max(dot(N, H), 0.0);
+    float spec = specularGTR(NoH, 0.1, 1.5);
+    vec3 F0 = vec3(0.04);
+    vec3 specColor = mix(F0, baseColor, 0.00) * spec * sunColor.rgb;
+    outColor += specColor;
+
+    imageStore({{IMG_BACK}}, pixelCoordinate, vec4(outColor*0.01, 1.0));
 }
 #endif
