@@ -4,8 +4,8 @@
 
 uniform sampler2D starColorTex;
 
-in vec2 uv;
-flat in int index;
+mediump in vec2 uv;
+mediump flat in int index;
 
 /* RENDERTARGETS: {RT_BACK} */
 layout(location = 0) out vec4 outColor;
@@ -14,13 +14,13 @@ void main()
 {
     // ── Soft disc from distance to triangle center ────────────
     float dist = length(uv);
-    float disc = 1.0 - smoothstep(0.7, 1.0, dist);
+    float disc = 1.0 - smoothstep(0.3, 0.5, dist);
 
     // ── Read star color from data texture ─────────────────────
     ivec2 starUV = ivec2(index % 512, index / 512);
     vec3 starCol = texelFetch(starColorTex, starUV, 0).rgb * 0.05;
 
-    outColor = vec4(starCol, disc);
+    outColor = vec4(starCol * disc, 1.0);
 }
 #endif
 
@@ -35,15 +35,17 @@ void main()
 
 // {{SHADER_GEOM}}
 #ifdef {{SHADER_GEOM}}
+#include "/lib/settings.glsl"
 
 layout(triangles) in;
 layout(triangle_strip, max_vertices = 146) out;
 
-out vec2 uv;
-flat out int index;
+mediump out vec2 uv;
+mediump flat out int index;
 
 uniform mat4 gbufferModelView;
 uniform mat4 gbufferProjection;
+uniform vec3 sunDirection;
 
 uniform sampler2D starDirectionTex;
 uniform sampler2D starColorTex;
@@ -103,6 +105,17 @@ void main()
 
     int maxStars = TEX_SIZE * TEX_SIZE;
 
+    // ── Starfield rotation (follows sun azimuth + tilt) ───────
+    vec3 sunDir = normalize(sunDirection);
+    float angle = atan(-sunDir.y, sunDir.x) + radians(sunPathRotation);
+    float c = cos(angle);
+    float s = sin(angle);
+    mat3 rotZ = mat3(
+        vec3( c, -s, 0),
+        vec3( s,  c, 0),
+        vec3( 0,  0, 1)
+    );
+
     for (int i = 0; i < STARS_PER_PATCH; i++)
     {
         int starIndex = baseIndex + i;
@@ -111,10 +124,10 @@ void main()
 
         ivec2 uv = indexToUV(starIndex);
 
-        vec3 dir = texelFetch(starDirectionTex, uv, 0).rgb;
+        vec3 dir = rotZ * texelFetch(starDirectionTex, uv, 0).rgb;
 
         vec4 data = texelFetch(starColorTex, uv, 0);
-        float size = data.a * 0.005;
+        float size = data.a * 0.003;
 
         if (!inView(dir * 1e3)) continue;
 

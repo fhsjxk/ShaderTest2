@@ -29,6 +29,8 @@ void main()
     vec3 V = normalize(worldPos - cameraPos);
     float NdotV = max(-dot(N, V), 0.0);
 
+    vec3 back = texelFetch({{RT_BACK}}, ivec2(gl_FragCoord.xy), 0).rgb;
+
     // ── Reflection direction ──────────────────────────────────
     vec3 R = reflect(-V, N); // world-space reflection direction
 
@@ -43,7 +45,7 @@ void main()
     // ── Fresnel blend ─────────────────────────────────────────
     float fresnel = fresnelSchlickF0(NdotV, 0.02); // water F0 ≈ 0.02
 
-    vec3 water = mix(vec3(0), skyRefl, fresnel);
+    vec3 water = mix(back, skyRefl, fresnel);
 
     outColor = vec4(water, 1.0);
 }

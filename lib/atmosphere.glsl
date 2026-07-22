@@ -42,6 +42,7 @@ const vec3 RAYLEIGH_SCATTERING_BASE = vec3(6.6049e-03, 1.2345e-02, 2.9413e-02); 
 //const vec3 RAYLEIGH_SCATTERING_BASE = vec3(41,95,255)/255.0 * 0.03624;
 
 const vec3 OZONE_ABSORPTION_BASE = vec3(2.2911e-03, 1.5404e-03, 0.0);
+//const vec3 OZONE_ABSORPTION_BASE = vec3(83, 241, 11) / 255.0 * 0.002;
 //const vec3 OZONE_ABSORPTION_BASE = vec3(0);
 
 //const vec3 AEROSOL_ABSORPTION_BASE = vec3(255, 255, 85)/255.0 * 0.015;
@@ -186,7 +187,7 @@ vec34 multiScatteringIsotropic(sampler2D transmitLUT, float cosTheta, float norm
 
     float aerosolDensity = AEROSOL_BASE_DENSITY * exp(-normalizedAlt * ATMOSPHERE_THICKNESS / AEROSOL_HEIGHT_SCALE);
 
-    vec34 approxMulti = 0.015 *
+    vec34 approxMulti = 0.02 *
     #ifdef ENABLE_SPECTRAL
     vec4(0.217, 0.347, 0.594, 1.0)
     #else

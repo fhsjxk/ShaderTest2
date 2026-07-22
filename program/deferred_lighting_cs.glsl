@@ -13,6 +13,7 @@ uniform sampler2D shadowtex0;
 uniform sampler2D shadowtex1;
 uniform sampler2D shadowcolor0;
 uniform sampler2D noisetex;
+uniform sampler2D nightSkyTex;
 uniform sampler2D {{RT_BASE_COLOR}};
 uniform sampler2D {{RT_NORMAL}};
 uniform sampler2D {{RT_LIGHTING0}};
@@ -62,9 +63,9 @@ void main()
         trans.rgb = rgbFromSpectral(trans) * 0.2;
         #endif
 
-        vec3 stars = texelFetch({{RT_BACK}}, pixelCoordinate, 0).rgb * trans;
+        vec3 stars = texelFetch({{RT_BACK}}, pixelCoordinate, 0).rgb * trans.rgb;
 
-        vec3 dither = (getNoise(noisetex, uv, vec2(viewWidth, viewHeight)).rgb - 0.5) * 0.05;
+        vec3 dither = (getNoise(noisetex, uv, vec2(viewWidth, viewHeight)).rgb - 0.5) * 0.03;
         vec3 sky = texture({{IMG_SKY_SAMPLER}}, uv).rgb;
         sky = sky * (1.0 + dither) + dither * 0.05;
         sky += stars;

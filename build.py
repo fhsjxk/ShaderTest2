@@ -47,13 +47,13 @@ class RT:
 
 
 RT_LIST = [
-    RT("RT_BACK",        "R11F_G11F_B10F"),
     RT("RT_BASE_COLOR",  "RGBA8"),
     RT("RT_NORMAL",      "RGBA8"),
     RT("RT_SPECULAR",    "RGBA8"),
-    RT("RT_LIGHTING0",   "R11F_G11F_B10F"),
+    RT("RT_LIGHTING0",   "RGBA16F"),
     RT("RT_LIGHTING1",   "RGBA8"),
-    RT("RT_BLOOM",       "R11F_G11F_B10F", size="1.505 1.02"),
+    RT("RT_BLOOM",       "RGBA16F", size="1.505 1.02"),
+    RT("RT_BACK",        "RGBA16F"),
 ]
 
 
@@ -70,8 +70,7 @@ class IMG:
 
 
 IMG_LIST = [
-    IMG("IMG_TRANSMIT_LUT", image="RGBA8",   type_="UNSIGNED_BYTE",
-        relative=False, size="256 64"),
+    IMG("IMG_TRANSMIT_LUT", image="RGBA16F", relative=False, size="256 64"),
     IMG("IMG_SKYVIEW",      image="RGBA16F", relative=False, size="256 128"),
     IMG("IMG_FROXEL",       image="RGBA16F", relative=False, size="32 1024"),
     IMG("IMG_SKY",          image="RGBA16F", relative=True,  size="0.125 0.125"),
