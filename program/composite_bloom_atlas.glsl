@@ -190,6 +190,8 @@ void main()
     float k = max(BLOOM_KNEE, 0.001);
     float weight = smoothstep(t - k, t + k, brightness) * (1.0 - BLOOM_MIN) + BLOOM_MIN;
     color.rgb *= weight;
+    brightness = getBrightness(color.rgb);
+    //color.rgb *= sqrt(brightness);
 
     // ── 分辨率自适应的 mip 强度（相同像素尺寸 → 相同强度）─────
     //float intensity = sqrt(float(mw) * float(mh)) / 63106.0 / (mipLevel + 0.01) + 1.0 ;

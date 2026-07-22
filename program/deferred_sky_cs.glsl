@@ -60,8 +60,6 @@ void main()
     #ifdef ENABLE_SPECTRAL
     sky.rgb = rgbFromSpectral(sky);
     #endif
-    //vec3 sky = rgbFromSpectral(computeInscattering(...));$
-    //sky.rgb = calcAdjustVibranceHDR(sky.rgb, 1.2);
     imageStore({{IMG_SKY}}, pixelCoord, vec4(sky.rgb, 1.0));
 }
 #endif

@@ -96,11 +96,11 @@ vec34 transmittanceFromLUT(sampler2D transmitLUT, float r, float mu)
     float H = sqrt(ATMOSPHERE_RADIUS * ATMOSPHERE_RADIUS - PLANET_RADIUS * PLANET_RADIUS);
     float rho = sqrt(max(0.0, r * r - PLANET_RADIUS * PLANET_RADIUS));
     float d = distanceToTopAtmosphereBoundary(r, mu);
-    float d_min = ATMOSPHERE_RADIUS - r;
-    float d_max = rho + H;
-    float x_mu = (d - d_min) / max(d_max - d_min, 1e-6);
-    float x_r = 1.0 - rho / H;
-    vec2 uv = vec2(clamp(x_mu, 0.0, 1.0), clamp(x_r, 0.0, 1.0));
+    float dMin = ATMOSPHERE_RADIUS - r;
+    float dMax = rho + H;
+    float xm = (d - dMin) / max(dMax - dMin, 1e-6);
+    float xr = 1.0 - rho / H;
+    vec2 uv = vec2(clamp(xm, 0.0, 1.0), clamp(xr, 0.0, 1.0));
     #ifdef ENABLE_SPECTRAL
     return texture(transmitLUT, uv);
     #else
@@ -132,11 +132,7 @@ float hgPhase(float cosTheta, float g)
 
 float aerosolPhase(float cosTheta)
 {
-    //return mix(hgPhase(cosTheta, 0.9),hgPhase(cosTheta, 0.7),0.3);
-    //return mix(mix(hgPhase(cosTheta, 0.65), hgPhase(cosTheta, 0.85), 0.1), hgPhase(cosTheta, 0.95), 0.03);
     return mix(mix(hgPhase(cosTheta, 0.55), hgPhase(cosTheta, 0.8), 0.35), hgPhase(cosTheta, 0.95), 0.07) * 1.2; // multscatter
-    return hgPhase(cosTheta, 0.5);
-    return mix(hgPhase(cosTheta, 0.6), hgPhase(cosTheta, 0.95), 0.1);
 }
 
 float rayleighPhase(float cosTheta)
@@ -235,14 +231,14 @@ vec34 computeTransmittanceLUT(vec2 uv)
 {
     // Bruneton inverse: UV → (r, mu)
     float H = sqrt(ATMOSPHERE_RADIUS * ATMOSPHERE_RADIUS - PLANET_RADIUS * PLANET_RADIUS);
-    float x_r = 1.0 - uv.y;
-    float rho = H * x_r;
+    float xr = 1.0 - uv.y;
+    float rho = H * xr;
     float r = sqrt(rho * rho + PLANET_RADIUS * PLANET_RADIUS);
 
-    float d_min = ATMOSPHERE_RADIUS - r;
-    float d_max = rho + H;
-    float x_mu = uv.x;
-    float d = d_min + x_mu * (d_max - d_min);
+    float dMin = ATMOSPHERE_RADIUS - r;
+    float dMax = rho + H;
+    float xm = uv.x;
+    float d = dMin + xm * (dMax - dMin);
 
     float mu = (d < 1e-6) ? 1.0 : (H * H - rho * rho - d * d) / (2.0 * r * d);
     mu = clamp(mu, -1.0, 1.0);
@@ -332,6 +328,32 @@ vec34 computeAtmosphereLUT(sampler2D transmitLUT, vec3 sunDir, vec2 uv)
     float r = mix(0.0, ATMOSPHERE_THICKNESS, uv.y);
 
     return computeInscattering(transmitLUT, sunDir, rayDirection, r);
+}
+
+// ── Sky view LUT sampling (lat-long) ────────────────────────
+
+vec3 sampleSkyViewLUT(sampler2D skyViewLUT, vec3 viewDir, float viewHeight)
+{
+    // Ground at bottom (v < 0.125), horizon at 0.125, sky above
+    float r  = PLANET_RADIUS + viewHeight;
+    float Vh = sqrt(max(0.0, r * r - PLANET_RADIUS * PLANET_RADIUS));
+    float thetaHorizon = acos(clamp(Vh / r, 0.0, 1.0));
+
+    float phi   = atan(viewDir.y, viewDir.x) + PI;
+    float theta = acos(clamp(viewDir.z, -1.0, 1.0));
+
+    float groundFraction = 0.125;
+    float v;
+    if (theta > thetaHorizon)
+    {
+        v = groundFraction * (1.0 - (theta - thetaHorizon) / max(PI - thetaHorizon, 1e-6));
+    }
+    else
+    {
+        v = groundFraction + (1.0 - theta / max(thetaHorizon, 1e-6)) * (1.0 - groundFraction);
+    }
+    vec2 uv = vec2(phi / (2.0 * PI), clamp(v, 0.0, 1.0));
+    return texture(skyViewLUT, uv).rgb;
 }
 
 vec3 rgbFromSpectral(vec4 L)

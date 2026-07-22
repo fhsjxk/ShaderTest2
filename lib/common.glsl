@@ -1,7 +1,7 @@
 #ifndef COMMON
 #define COMMON
 
-{{GLOBAL_SETTINGS}}
+#include "/lib/settings.glsl"
 
 {{RT_FORMATS}}
 

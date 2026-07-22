@@ -1,27 +1,31 @@
 // {{SHADER_FRAG}}
-// // SHADER_FRAG$
 #ifdef {{SHADER_FRAG}}
-// #ifdef SHADER_FRAG$
+#include "/lib/common.glsl"
 
-/* RENDERTARGETS: 15 */
-layout(location = 0) out vec4 color;
+uniform sampler2D starColorTex;
 
 in vec2 uv;
 flat in int index;
 
+/* RENDERTARGETS: {RT_BACK} */
+layout(location = 0) out vec4 outColor;
+
 void main()
 {
-    color.rgb = vec3(0.0);
-    color.rgb += (index % 3) * 0.3;
-    //color.rgb = uv.xyx * color1 * brightness;
-    color.a = 1.0;
+    // ── Soft disc from distance to triangle center ────────────
+    float dist = length(uv);
+    float disc = 1.0 - smoothstep(0.7, 1.0, dist);
+
+    // ── Read star color from data texture ─────────────────────
+    ivec2 starUV = ivec2(index % 512, index / 512);
+    vec3 starCol = texelFetch(starColorTex, starUV, 0).rgb * 0.05;
+
+    outColor = vec4(starCol, disc);
 }
 #endif
 
 // {{SHADER_VERT}}
-// // SHADER_VERT$
 #ifdef {{SHADER_VERT}}
-// #ifdef SHADER_VERT$
 
 void main()
 {
@@ -30,12 +34,10 @@ void main()
 #endif
 
 // {{SHADER_GEOM}}
-// // SHADER_GEOM$
 #ifdef {{SHADER_GEOM}}
-// #ifdef SHADER_GEOM$
 
 layout(triangles) in;
-layout(triangle_strip, max_vertices = 204) out;
+layout(triangle_strip, max_vertices = 146) out;
 
 out vec2 uv;
 flat out int index;
@@ -76,7 +78,6 @@ bool inView(vec3 p)
 void emitStar(vec3 dir, float size, int starIndex)
 {
     vec4 viewPosition = gbufferModelView * vec4(dir * 1e3, 1.0);
-    //vec4 viewPos = gbufferModelView * vec4(dir * 1e3, 1.0);$
 
     index = starIndex;
 
@@ -113,13 +114,11 @@ void main()
         vec3 dir = texelFetch(starDirectionTex, uv, 0).rgb;
 
         vec4 data = texelFetch(starColorTex, uv, 0);
-        vec3 col = data.rgb;
         float size = data.a * 0.005;
 
-        vec3 pos = dir;
-        if (!inView(pos)) continue;
+        if (!inView(dir * 1e3)) continue;
 
-        //emitStar(dir, size, starIndex);
+        emitStar(dir, size, starIndex);
     }
 }
 #endif

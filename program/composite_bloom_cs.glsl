@@ -93,6 +93,7 @@ void main()
 
     // mip1+：内容区 x∈[rightColumnX, rightColumnX+mw)，y 逐 mip 下移
     int yOff = 1;
+    int actualMips = 1; // mip0
     for (int mip = 1; mip < maxMips; mip++)
     {
         int mw = max(vw >> mip, 1);
@@ -108,27 +109,12 @@ void main()
         s += texture({{RT_BLOOM}}, baseUV + vec2(-0.25,  0.25) / atlasSize + ditherUv).rgb;
         s += texture({{RT_BLOOM}}, baseUV + vec2( 0.25,  0.25) / atlasSize + ditherUv).rgb;
         bloomAccum += s * 0.25;
+        actualMips++;
 
         yOff += mh + 2;
     }
 
     // ── 归一化并应用 bloom 强度 ──────────────────────────────
-    int numMips = min(totalMipLevels, maxMips);
-    // 实际遍历的 mip 数：检查有哪些 mip 尺寸 >= 4
-    int actualMips = 1;  // mip0 始终包含
-    int yCheck = 1;
-    for (int m = 1; m < maxMips; m++)
-    {
-        int mwCheck = max(vw >> m, 1);
-        int mhCheck = max(vh >> m, 1);
-        if (min(mwCheck, mhCheck) >= 4)
-        {
-            actualMips++;
-            yCheck += mhCheck + 2;
-        }
-        else break;
-    }
-
     //float bloomWeight = 1.0 / max(float(actualMips), 1.0) / BLOOM_THRESHOLD;
     float bloomWeight = BLOOM_THRESHOLD / max(float(actualMips), 1.0);
     vec3 bloomContrib = bloomAccum * bloomWeight;

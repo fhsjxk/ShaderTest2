@@ -31,4 +31,32 @@ float roughnessToExponent(float roughness)
     return 2.0 / (r * r) - 2.0;
 }
 
+// ── Fresnel approximations ───────────────────────────────────
+
+// Schlick: F0 = 0.04 (default dielectric), F90 = 1.0
+float fresnelSchlick(float NdotV)
+{
+    float f0 = 0.04;
+    return f0 + (1.0 - f0) * pow(1.0 - NdotV, 5.0);
+}
+
+// Schlick with custom F0, F90 = 1.0
+float fresnelSchlickF0(float NdotV, float f0)
+{
+    return f0 + (1.0 - f0) * pow(1.0 - NdotV, 5.0);
+}
+
+// Schlick with custom F90, F0 = 0.04
+float fresnelSchlickF90(float NdotV, float f90)
+{
+    float f0 = 0.04;
+    return f0 + (f90 - f0) * pow(1.0 - NdotV, 5.0);
+}
+
+// Schlick with both F0 and F90
+float fresnelSchlickFull(float NdotV, float f0, float f90)
+{
+    return f0 + (f90 - f0) * pow(1.0 - NdotV, 5.0);
+}
+
 #endif

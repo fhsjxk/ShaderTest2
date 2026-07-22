@@ -26,7 +26,8 @@ void main()
     ivec2 atlasCoord = ivec2(gl_FragCoord.xy);
     ivec2 atlasSize  = textureSize({{RT_BLOOM}}, 0);
 
-    if (any(greaterThanEqual(atlasCoord, atlasSize))) {
+    if (any(greaterThanEqual(atlasCoord, atlasSize)))
+    {
         outColor = vec4(0.0, 0.0, 0.0, 1.0);
         return;
     }
@@ -48,7 +49,8 @@ void main()
     mipCount = 1;
 
     float desiredY = 0.0;
-    for (int m = 1; m < maxMips; m++) {
+    for (int m = 1; m < maxMips; m++)
+    {
         int mw = max(vw >> m, 1), mh = max(vh >> m, 1);
         if (min(mw, mh) < 4) break;
         float dxMin = float(vw) + 2.0;
@@ -62,37 +64,30 @@ void main()
 
     // ── 查找当前像素属于哪个 mip ─────────────────────────────
     int foundMip = -1;
-    for (int m = 0; m < mipCount; m++) {
+    for (int m = 0; m < mipCount; m++)
+    {
         if (atlasCoord.x >= mipXMin[m] && atlasCoord.x < mipXMax[m]
-            && atlasCoord.y >= mipYMin[m] && atlasCoord.y < mipYMax[m]) {
+            && atlasCoord.y >= mipYMin[m] && atlasCoord.y < mipYMax[m])
+        {
             foundMip = m; break;
         }
     }
-    if (foundMip < 0) { outColor = vec4(0.0, 0.0, 0.0, 1.0); return; }
-
-    // ── RT_BACK mip(foundMip+3) 早期跳过：8×8 区域全黑则跳过模糊 ──
-    /* int checkMip = foundMip + 3;
-    int contentXMin = mipXMin[foundMip] + 1;
-    int contentYMin = mipYMin[foundMip] + 1;
-    int contentW = mipXMax[foundMip] - mipXMin[foundMip] - 2;
-    int contentH = mipYMax[foundMip] - mipYMin[foundMip] - 2;
-    vec2 screenFrac = vec2(float(atlasCoord.x - contentXMin), float(atlasCoord.y - contentYMin))
-                    / vec2(float(contentW), float(contentH));
-    ivec2 rtBackMipSize = textureSize({{RT_BACK}}, checkMip);
-    ivec2 rtBackCoord = ivec2(screenFrac * vec2(rtBackMipSize));
-    vec3 rough = texelFetch({{RT_BACK}}, rtBackCoord, checkMip).rgb;
-    if (getBrightness(rough) < BLOOM_THRESHOLD - BLOOM_KNEE) {
-        outColor = texelFetch({{RT_BLOOM}}, atlasCoord, 0);
+    if (foundMip < 0)
+    {
+        outColor = vec4(0.0, 0.0, 0.0, 1.0);
         return;
-    } */
+    }
 
-    int xMin = mipXMin[foundMip], xMax = mipXMax[foundMip];
-    int yMin = mipYMin[foundMip], yMax = mipYMax[foundMip];
+    int xMin = mipXMin[foundMip];
+    int xMax = mipXMax[foundMip];
+    int yMin = mipYMin[foundMip];
+    int yMax = mipYMax[foundMip];
 
     // ── 垂直高斯模糊（texelFetch，双轴 clamp）─────────────────
     vec3 color = texelFetch({{RT_BLOOM}}, atlasCoord, 0).rgb * gaussianWeights[0];
 
-    for (int i = 1; i < 5; i++) {
+    for (int i = 1; i < 5; i++)
+    {
         int upY   = clamp(atlasCoord.y - i, yMin, yMax - 1);
         int downY = clamp(atlasCoord.y + i, yMin, yMax - 1);
         int sampX = clamp(atlasCoord.x,     xMin, xMax - 1);

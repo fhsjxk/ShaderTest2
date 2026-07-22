@@ -34,9 +34,8 @@ DIR_PROGRAM      = "program"
 DIR_WORLD        = "world0"
 
 GBUFFER_COMMON   = "gbuffers_common.glsl"
-SHADOW_COMMON    = "shadow_common.glsl"
+SHADOW_COMMON    = "shadowmap.glsl"
 PROPERTIES       = "shaders.properties"
-GLOBAL_SETTINGS  = "global_settings.glsl"
 
 
 # ── Render Targets ───────────────────────────────────────────
@@ -84,13 +83,13 @@ IMG_LIST = [
 # Output:  {prefix}{1-based-index}.{ext}
 
 PIPELINE = {
-    "prepare":   ["lighting_lut", "transmit_lut", "atmosphere_lut", "skyview"],
+    "prepare":   ["lighting_lut", "transmit_lut", "skyview"],
+    "deferred":  ["sky", "lighting"],
     "composite": ["mipmap", "lighting_lut",
                   "bloom_atlas",        # .vsh+.gsh+.fsh -> atlas packing only
                   "bloom_blur_h",       # .vsh+.fsh -> horizontal blur (buffer flip)
                   "bloom_blur_v",       # .vsh+.fsh -> vertical blur (buffer flip)
                   "bloom", "exposure", "final"],
-    "deferred":  ["sky", "lighting", "mipmap"],
 }
 
 GBUFFER_VARIANTS = [
@@ -102,7 +101,7 @@ GBUFFER_VARIANTS = [
 
 SHADOW_VARIANTS = [""]
 
-EXCLUDE_ROOT = {PROPERTIES, GLOBAL_SETTINGS, ".gitignore", "NAMING_CONVENTION.md"}
+EXCLUDE_ROOT = {PROPERTIES, ".gitignore", "NAMING_CONVENTION.md"}
 
 
 # ═══════════════════════════════════════════════════════════════
@@ -252,12 +251,7 @@ class ShaderBuilder:
     # ── entry point ────────────────────────────────────────────
 
     def run(self) -> None:
-        # 1 — process global_settings (may itself contain template vars)
-        gs_text = Path(GLOBAL_SETTINGS).read_text(encoding="utf-8")
-        self.tmpl.add("{{GLOBAL_SETTINGS}}", self.tmpl.apply(gs_text))
-        self.tmpl.freeze()
-
-        # 2 — clean & recreate output tree
+        # 1 — clean & recreate output tree
         if SHADERPACK.exists():
             shutil.rmtree(SHADERPACK)
         for d in (SHADERPACK / DIR_LIB,
@@ -324,14 +318,11 @@ class ShaderBuilder:
     # ── shadows ────────────────────────────────────────────────
 
     def _shadows(self) -> None:
-        common = self.src_prog / SHADOW_COMMON
-        self.tmpl.apply_file(common, SHADERPACK / DIR_PROGRAM / SHADOW_COMMON)
-
         for variant in SHADOW_VARIANTS:
             sep  = "_" if variant else ""
             base = f"shadow{sep}{variant}"
             _emit_pair(self.tmpl, self.out_world, base,
-                       include=f"{DIR_PROGRAM}/{SHADOW_COMMON}",
+                       include=f"{DIR_LIB}/{SHADOW_COMMON}",
                        defines=[f"SHADOW{sep}{variant.upper()}"]
                        if variant else None)
 

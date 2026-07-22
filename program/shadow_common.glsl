@@ -1,6 +1,18 @@
-// Shared shadow utility functions (available to all shader types)
-#include "/lib/shadow_utils.glsl"
-// (distortShadowClipPos now in lib/shadow_utils.glsl)$
+// Shared shadow utility functions
+
+#ifndef SHADOW_COMMON_UTILS
+#define SHADOW_COMMON_UTILS
+
+vec3 distortShadowClipPos(vec3 shadowClipPosition)
+{
+    float distortionFactor = length(shadowClipPosition.xy);
+    distortionFactor += 0.1;
+    shadowClipPosition.xy /= distortionFactor;
+    shadowClipPosition.z *= 0.5;
+    return shadowClipPosition;
+}
+
+#endif
 
 // {{SHADER_FRAG}}
 #ifdef {{SHADER_FRAG}}

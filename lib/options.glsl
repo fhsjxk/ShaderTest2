@@ -1,5 +1,4 @@
 #ifndef OPTIONS
-
 #define OPTIONS
 
 // LIGHTING
