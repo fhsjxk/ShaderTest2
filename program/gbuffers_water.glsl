@@ -35,10 +35,10 @@ void main()
     vec3 R = reflect(-V, N); // world-space reflection direction
 
     // ── Convert to atmosphere space for skyview sampling ──────
-    vec3 RAtm = R.xzy * vec3(-1,-1,1); // Minecraft world → atmosphere coords (Z-up)
+    vec3 RAtm = R*vec3(-1,1,-1);
 
     // ── Sample sky reflection from skyview LUT ────────────────
-    vec3 skyRefl = sampleSkyViewLUT({{IMG_SKYVIEW_SAMPLER}}, -RAtm, 0.0);
+    vec3 skyRefl = sampleSkyViewLUT({{IMG_SKYVIEW_SAMPLER}}, -RAtm*vec3(1,1,1), 0.0);
 
     // ── Sample backbuffer for screen-space reflection ─────────
 

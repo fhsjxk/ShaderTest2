@@ -29,8 +29,9 @@ const vec4 RAYLEIGH_SCATTERING_BASE     = vec4(6.605e-3, 1.067e-2, 1.842e-2, 3.1
 
 const vec4 OZONE_ABSORPTION_BASE        = vec4(3.472e-3, 3.914e-3, 1.349e-3, 11.03e-5) * 0.5;
 
-const vec4 AEROSOL_ABSORPTION_BASE      = vec4(0.6) * 0.01;
-const vec4 AEROSOL_SCATTERING_BASE      = vec4(0.9) * 0.015;
+const vec4 AEROSOL_ABSORPTION_BASE      = vec4(1) * 0.005;
+//const vec4 AEROSOL_SCATTERING_BASE      = vec4(0.9) * 0.01;
+const vec4 AEROSOL_SCATTERING_BASE      = vec4(1.5908, 1.7711, 2.0942, 2.4033) * 0.4 * 0.015;
 
 const vec4 GROUND_ALBEDO         = vec4(0.57, 0.45, 0.37, 0.8) * 0.1; // = rgbFromSpectral^-1(vec3(15,45,100)/255)
 #else
@@ -52,11 +53,15 @@ const vec3 OZONE_ABSORPTION_BASE = vec3(2.2911e-03, 1.5404e-03, 0.0);
 //const vec3 AEROSOL_ABSORPTION_BASE = mix(vec3(130, 185, 255)/255.0, vec3(1), 0.0) * 0.1;
 ////const vec3 AEROSOL_ABSORPTION_BASE = mix(vec3(0.1, 0.5, 0.8), vec3(0.8), 0.6) * 0.03 * 0.0;
 //const vec3 AEROSOL_ABSORPTION_BASE = mix(vec3(0.1, 0.5, 0.8), vec3(0.8), 0.99) * 0.01;
-const vec3 AEROSOL_ABSORPTION_BASE = vec3(1.0, 1.0, 0.6) * 0.01;
+//const vec3 AEROSOL_ABSORPTION_BASE = vec3(1.0, 1.0, 0.6) * 0.005;
+const vec3 AEROSOL_ABSORPTION_BASE = vec3(1) * 0.005;
 //const vec3 AEROSOL_SCATTERING_BASE = mix(vec3(130, 185, 255)/255.0, vec3(1), 0.1) * 0.6;
 //const vec3 AEROSOL_SCATTERING_BASE = vec3(1.0) * 0.01;
 ////const vec3 AEROSOL_SCATTERING_BASE = mix(vec3(130, 185, 255)/255.0, vec3(1), 0.8) * 0.03;
-const vec3 AEROSOL_SCATTERING_BASE = mix(vec3(130, 145, 255)/255.0, vec3(1), 0.3) * 0.015;
+//const vec3 AEROSOL_SCATTERING_BASE = mix(vec3(130, 145, 255)/255.0, vec3(1), 0.3) * 0.01;
+//const vec3 AEROSOL_SCATTERING_BASE = mix(vec3(130, 145, 255)/255.0, vec3(1), 0.5) * 0.015;
+const vec3 AEROSOL_SCATTERING_BASE = vec3(175, 200, 255)/255.0 * 0.015;
+//const vec3 AEROSOL_SCATTERING_BASE = vec3(1) * 0.01;
 
 //const vec3 GROUND_ALBEDO         = vec3(15, 45, 100)/255.0;
 const vec3 GROUND_ALBEDO         = vec3(0.02, 0.04, 0.12);
@@ -133,7 +138,7 @@ float hgPhase(float cosTheta, float g)
 
 float aerosolPhase(float cosTheta)
 {
-    return mix(mix(hgPhase(cosTheta, 0.55), hgPhase(cosTheta, 0.8), 0.35), hgPhase(cosTheta, 0.95), 0.07) * 1.2; // multscatter
+    return mix(mix(hgPhase(cosTheta, 0.55), hgPhase(cosTheta, 0.8), 0.4), hgPhase(cosTheta, 0.96), 0.1) * 1.2; // multscatter
 }
 
 float rayleighPhase(float cosTheta)
@@ -244,8 +249,8 @@ vec34 computeTransmittanceLUT(vec2 uv)
     float mu = (d < 1e-6) ? 1.0 : (H * H - rho * rho - d * d) / (2.0 * r * d);
     mu = clamp(mu, -1.0, 1.0);
 
-    vec3 rayDirection = vec3(sqrt(max(0.0, 1.0 - mu * mu)), 0.0, mu);
-    vec3 origin = vec3(0.0, 0.0, r);
+    vec3 rayDirection = vec3(sqrt(max(0.0, 1.0 - mu * mu)), mu, 0.0);
+    vec3 origin = vec3(0.0, r, 0.0);
 
     return computeTransmittance(origin, rayDirection);
 }
@@ -254,8 +259,8 @@ vec34 computeTransmittanceLUT(vec2 uv)
 
 vec34 computeInscattering(sampler2D transmitLUT, vec3 sunDirection, vec3 rayDirection, float altitude)
 {
-    vec3 rayOrigin = vec3(0.0, 0.0, PLANET_RADIUS + altitude);
-    vec3 sunDirN = normalize(sunDirection.xzy);
+    vec3 rayOrigin = vec3(0.0, PLANET_RADIUS + altitude, 0.0);
+    vec3 sunDirN = normalize(sunDirection);
 
     float cosTheta = dot(rayDirection, sunDirN);
 
@@ -324,7 +329,7 @@ vec34 computeInscattering(sampler2D transmitLUT, vec3 sunDirection, vec3 rayDire
 vec34 computeAtmosphereLUT(sampler2D transmitLUT, vec3 sunDir, vec2 uv)
 {
     float cosTheta = uv.x * 2.0 - 1.0;
-    vec3 rayDirection = vec3(sqrt(max(0.0, 1.0 - cosTheta * cosTheta)), 0.0, cosTheta);
+    vec3 rayDirection = vec3(sqrt(max(0.0, 1.0 - cosTheta * cosTheta)), cosTheta, 0.0);
 
     float r = mix(0.0, ATMOSPHERE_THICKNESS, uv.y);
 
@@ -340,8 +345,8 @@ vec3 sampleSkyViewLUT(sampler2D skyViewLUT, vec3 viewDir, float viewHeight)
     float Vh = sqrt(max(0.0, r * r - PLANET_RADIUS * PLANET_RADIUS));
     float thetaHorizon = acos(clamp(Vh / r, 0.0, 1.0));
 
-    float phi   = atan(viewDir.y, viewDir.x) + PI;
-    float theta = acos(clamp(viewDir.z, -1.0, 1.0));
+    float phi   = atan(viewDir.z, viewDir.x) + PI;
+    float theta = acos(clamp(viewDir.y, -1.0, 1.0));
 
     float groundFraction = 0.125;
     float v;
@@ -360,6 +365,47 @@ vec3 sampleSkyViewLUT(sampler2D skyViewLUT, vec3 viewDir, float viewHeight)
 vec3 rgbFromSpectral(vec4 L)
 {
     return M * L * 0.025;
+}
+
+// ── Froxel (screen-space atmosphere volume) ─────────────────
+// Froxel 使用指数分布距离：100m ~ 100km
+// 层 0 = 最近（~100m 累积），层 7 = 最远（~100km 累积）
+
+const int    FROXEL_LAYERS      = 8;
+const float  FROXEL_MIN_DIST    = 0.1;    // 100 m
+const float  FROXEL_MAX_DIST    = 1000.0; // 100 km
+
+float froxelDepthToLayer(float viewDist)
+{
+    // Maps viewDist in [FROXEL_MIN_DIST, FROXEL_MAX_DIST] to layer index [0, 7]
+    // using logarithmic distribution to match froxel computation
+    float clamped = clamp(viewDist, FROXEL_MIN_DIST, FROXEL_MAX_DIST);
+    float norm = log(clamped / FROXEL_MIN_DIST) / log(FROXEL_MAX_DIST / FROXEL_MIN_DIST);
+    return norm * float(FROXEL_LAYERS) - 1.0;
+}
+
+vec4 sampleFroxel(sampler2D froxelTex, vec2 screenUV, float viewDist)
+{
+    // Map view distance to continuous layer index
+    float layerF = froxelDepthToLayer(viewDist);
+    float layer  = clamp(layerF, 0.0, float(FROXEL_LAYERS - 1));
+
+    // Bilinear within layer + linear across layers = trilinear
+    float layer0 = floor(layer);
+    float layer1 = min(layer0 + 1.0, float(FROXEL_LAYERS - 1));
+    float lerpFrac = layer - layer0;
+
+    // Froxel atlas: 64 wide, 512 tall (8 layers × 64)
+    float atlasH = 512.0;
+    float layerH = 64.0;
+
+    vec2 uv0 = vec2(screenUV.x, (screenUV.y * layerH + layer0 * layerH) / atlasH);
+    vec2 uv1 = vec2(screenUV.x, (screenUV.y * layerH + layer1 * layerH) / atlasH);
+
+    vec4 v0 = texture(froxelTex, uv0);
+    vec4 v1 = texture(froxelTex, uv1);
+
+    return mix(v0, v1, lerpFrac);
 }
 
 #endif

@@ -29,7 +29,7 @@ void main()
         theta = PI * 0.5 * (1.0 - (uv.y - groundFraction) / (1.0 - groundFraction)); // horizon → zenith
     }
     float phi   = uv.x * 2.0 * PI;
-    vec3 rayDir = vec3(sin(theta) * cos(phi), sin(theta) * sin(phi), cos(theta));
+    vec3 rayDir = vec3(sin(theta) * cos(phi), cos(theta), sin(theta) * sin(phi));
 
     float viewHeight = 0.0;
     vec34 inscatter = computeInscattering({{IMG_TRANSMIT_LUT_SAMPLER}}, sunDirection, rayDir, viewHeight);

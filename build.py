@@ -1,16 +1,3 @@
-"""
-ShaderTest2 — Iris Shader Pack Build Script
-=============================================
-Processes template .glsl files and generates the final shader pack
-structure consumed by Iris at runtime.
-
-Template syntax:
-  {RT_NAME}          → render target index      (e.g. {RT_BACK} → 0)
-  {{RT_NAME}}        → colortex reference        (e.g. {{RT_BACK}} → colortex0)
-  {{IMG_NAME}}       → custom image reference    (e.g. {{IMG_SKY}} → img_sky)
-  {{SHADER_COMP}}    → replaced with SHADER_COMP for compute-shader blocks
-"""
-
 import os
 import shutil
 import re
@@ -38,7 +25,6 @@ SHADOW_COMMON    = "shadowmap.glsl"
 PROPERTIES       = "shaders.properties"
 
 
-# ── Render Targets ───────────────────────────────────────────
 @dataclass
 class RT:
     name: str
@@ -57,7 +43,6 @@ RT_LIST = [
 ]
 
 
-# ── Custom Images ────────────────────────────────────────────
 @dataclass
 class IMG:
     name:     str
@@ -72,17 +57,13 @@ class IMG:
 IMG_LIST = [
     IMG("IMG_TRANSMIT_LUT", image="RGBA16F", relative=False, size="256 64"),
     IMG("IMG_SKYVIEW",      image="RGBA16F", relative=False, size="256 128"),
-    IMG("IMG_FROXEL",       image="RGBA16F", relative=False, size="32 1024"),
+    IMG("IMG_FROXEL",       image="RGBA16F", relative=False, clear=True, size="64 512"),
     IMG("IMG_SKY",          image="RGBA16F", relative=True,  size="0.125 0.125"),
 ]
 
 
-# ── Pipeline Stages ──────────────────────────────────────────
-# Each stage maps to  program/{prefix}_{name}.glsl
-# Output:  {prefix}{1-based-index}.{ext}
-
 PIPELINE = {
-    "prepare":   ["lighting_lut", "transmit_lut", "skyview"],
+    "prepare":   ["lighting_lut", "transmit_lut", "skyview", "atmosphere_froxel"],
     "deferred":  ["sky", "lighting"],
     "composite": ["mipmap", "lighting_lut",
                   "bloom_atlas",        # .vsh+.gsh+.fsh -> atlas packing only
@@ -102,10 +83,6 @@ SHADOW_VARIANTS = [""]
 
 EXCLUDE_ROOT = {PROPERTIES, ".gitignore", "NAMING_CONVENTION.md"}
 
-
-# ═══════════════════════════════════════════════════════════════
-#  Template Engine
-# ═══════════════════════════════════════════════════════════════
 
 class TemplateEngine:
     """Compiles a single regex from all template variables for fast
@@ -200,10 +177,6 @@ def build_template_vars() -> TemplateEngine:
     return tmpl
 
 
-# ═══════════════════════════════════════════════════════════════
-#  Shader-generation helpers
-# ═══════════════════════════════════════════════════════════════
-
 _STAGE_EXT = {
     "SHADER_COMP": ".csh",
     "SHADER_FRAG": ".fsh",
@@ -235,10 +208,6 @@ def _emit_pair(tmpl: TemplateEngine, out_dir: Path, base: str,
     _emit(tmpl, out_dir, base, tmpl.frag, include, defines)
     _emit(tmpl, out_dir, base, tmpl.vert, include, defines)
 
-
-# ═══════════════════════════════════════════════════════════════
-#  Build Orchestrator
-# ═══════════════════════════════════════════════════════════════
 
 class ShaderBuilder:
     def __init__(self):
@@ -379,10 +348,6 @@ class ShaderBuilder:
 
         (SHADERPACK / PROPERTIES).write_text(text, encoding="utf-8")
 
-
-# ═══════════════════════════════════════════════════════════════
-#  Entry Point
-# ═══════════════════════════════════════════════════════════════
 
 if __name__ == "__main__":
     ShaderBuilder().run()

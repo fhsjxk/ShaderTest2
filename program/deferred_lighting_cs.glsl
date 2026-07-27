@@ -20,6 +20,7 @@ uniform sampler2D {{RT_LIGHTING0}};
 uniform sampler2D {{RT_BACK}};
 uniform sampler2D {{IMG_SKY_SAMPLER}};
 uniform sampler2D {{IMG_TRANSMIT_LUT_SAMPLER}};
+uniform sampler2D {{IMG_FROXEL_SAMPLER}};
 
 uniform mat4 gbufferModelViewInverse;
 uniform mat4 gbufferProjectionInverse;
@@ -50,7 +51,7 @@ void main()
     vec2 clipXY = uv * 2.0 - 1.0;
     vec3 viewRay = mat3(gbufferModelViewInverse) * (gbufferProjectionInverse * vec4(clipXY, 1.0, 1.0)).xyz;
 
-    vec34 sunColor = transmittanceFromLUT({{IMG_TRANSMIT_LUT_SAMPLER}}, PLANET_RADIUS, clamp(sunDirection.y, -1.0, 1.0));
+    vec34 sunColor = transmittanceFromLUT({{IMG_TRANSMIT_LUT_SAMPLER}}, PLANET_RADIUS + max((eyeAltitude - 64.0) * 0.001, 0.001), clamp(sunDirection.y, -1.0, 1.0));
     #ifdef ENABLE_SPECTRAL
     sunColor.rgb = rgbFromSpectral(sunColor) * 0.2;
     #endif
@@ -58,7 +59,7 @@ void main()
     if (depth == 1.0)
     {
         vec3 viewDir = normalize(viewRay);
-        vec34 trans = transmittanceFromLUT({{IMG_TRANSMIT_LUT_SAMPLER}}, PLANET_RADIUS, clamp(viewRay.y, -1.0, 1.0));
+        vec34 trans = transmittanceFromLUT({{IMG_TRANSMIT_LUT_SAMPLER}}, PLANET_RADIUS + max((eyeAltitude - 64.0) * 0.001, 0.001), clamp(viewRay.y, -1.0, 1.0));
         #ifdef ENABLE_SPECTRAL
         trans.rgb = rgbFromSpectral(trans) * 0.2;
         #endif
@@ -102,6 +103,13 @@ void main()
 
     const float MASTER_GAIN = 0.6;
     vec3 outColor = baseAlbedo * (diffuseSun + ambientLight + localLight) * MASTER_GAIN;
+
+    // ── Froxel atmosphere volume fog ─────────────────────────
+    float viewDist = length(feetPlayerPosition);
+    vec4 froxel = sampleFroxel({{IMG_FROXEL_SAMPLER}}, uv, viewDist*0.0);
+    vec3 fogColor = froxel.rgb;
+    float fogTrans = froxel.a;
+    //outColor = outColor * fogTrans + fogColor * (1.0 - fogTrans);
 
     // ── GGX 高光（粗糙度 0.2）─────────────────────────────────
     vec3 N = normalize(normal.xyz * 2.0 - 1.0);

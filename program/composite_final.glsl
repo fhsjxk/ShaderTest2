@@ -6,6 +6,7 @@
 uniform sampler2D {{RT_BACK}};
 //uniform sampler2D {{RT_SKY_TEST}};
 uniform sampler2D {{RT_BLOOM}};
+//uniform sampler2D {{IMG_SKYVIEW}};
 //uniform sampler2D {{IMG_BLOOM_SAMPLER}};$
 uniform sampler2D colortex15;
 uniform sampler2D starcoltex;

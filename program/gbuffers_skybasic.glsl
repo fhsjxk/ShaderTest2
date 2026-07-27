@@ -14,7 +14,7 @@ void main()
 {
     // ── Soft disc from distance to triangle center ────────────
     float dist = length(uv);
-    float disc = 1.0 - smoothstep(0.3, 0.5, dist);
+    float disc = 1.0 - smoothstep(0.1, 0.5, dist);
 
     // ── Read star color from data texture ─────────────────────
     ivec2 starUV = ivec2(index % 512, index / 512);
