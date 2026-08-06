@@ -37,7 +37,8 @@ const vec4 GROUND_ALBEDO         = vec4(0.57, 0.45, 0.37, 0.8) * 0.1; // = rgbFr
 #else
 //const vec3 SUN_RADIANCE          = vec3(1.24, 1.15, 1.00) * 6.0;
 //const vec3 SUN_RADIANCE          = vec3(1.02148, 0.98584, 1.0752) * 6.0;
-const vec3 SUN_RADIANCE          = vec3(1, 0.8794, 0.8267) * 7;
+const vec3 SUN_RADIANCE          = vec3(1.6695, 1.8824, 1.8963) * 4;
+//const vec3 SUN_RADIANCE          = vec3(1.1) * 6.0;
 
 //const vec3 RAYLEIGH_SCATTERING_BASE = vec3(4.6049e-03, 1.2345e-02, 4.9413e-02);
 //const vec3 RAYLEIGH_SCATTERING_BASE = vec3(6.6049e-03, 1.2345e-02, 2.9413e-02); // ARPC spectral integral
@@ -60,26 +61,28 @@ const vec3 OZONE_ABSORPTION_BASE = vec3(2.2911e-03, 1.5404e-03, 0.0);
 
 //const vec3 AEROSOL_ABSORPTION_BASE = vec3(1) * 0.005;
 //const vec3 AEROSOL_ABSORPTION_BASE = vec3(1,0.8,0.5) * 0.01;
-const vec3 AEROSOL_ABSORPTION_BASE = vec3(1,0.9,0.7) * 0.01;
-//const vec3 AEROSOL_ABSORPTION_BASE = vec3(1) * 0.01;
+//const vec3 AEROSOL_ABSORPTION_BASE = vec3(1,0.9,0.7) * 0.01;
+const vec3 AEROSOL_ABSORPTION_BASE = vec3(1) * 0.01;
 
 //const vec3 AEROSOL_SCATTERING_BASE = mix(vec3(130, 185, 255)/255.0, vec3(1), 0.1) * 0.6;
 //const vec3 AEROSOL_SCATTERING_BASE = vec3(1.0) * 0.01;
 ////const vec3 AEROSOL_SCATTERING_BASE = mix(vec3(130, 185, 255)/255.0, vec3(1), 0.8) * 0.03;
 //const vec3 AEROSOL_SCATTERING_BASE = mix(vec3(130, 145, 255)/255.0, vec3(1), 0.3) * 0.01;
 //const vec3 AEROSOL_SCATTERING_BASE = mix(vec3(130, 145, 255)/255.0, vec3(1), 0.5) * 0.015;
-const vec3 AEROSOL_SCATTERING_BASE = vec3(175, 200, 255)/255.0 * 0.02;
+//const vec3 AEROSOL_SCATTERING_BASE = vec3(175, 200, 255)/255.0 * 0.02;
+const vec3 AEROSOL_SCATTERING_BASE = vec3(190, 210, 255)/255.0 * 0.02;
 //const vec3 AEROSOL_SCATTERING_BASE = vec3(1) * 0.01;
 
 //const vec3 GROUND_ALBEDO         = vec3(15, 45, 100)/255.0;
 //const vec3 GROUND_ALBEDO         = vec3(0.04, 0.08, 0.24);
-const vec3 GROUND_ALBEDO         = vec3(15, 45, 100)/255.0;
+//const vec3 GROUND_ALBEDO         = vec3(15, 45, 100)/255.0 * 0.5;
+const vec3 GROUND_ALBEDO         = vec3(.2);
 #endif
 
-const float MOLECULAR_HEIGHT_SCALE = 8.0;
-//const float MOLECULAR_HEIGHT_SCALE = 8.67;
+//const float MOLECULAR_HEIGHT_SCALE = 8.0;
+const float MOLECULAR_HEIGHT_SCALE = 8.67;
 
-const float AEROSOL_HEIGHT_SCALE = 1.5;
+const float AEROSOL_HEIGHT_SCALE = 1.2;
 const float AEROSOL_TURBIDITY    = 1.0;
 const float AEROSOL_BASE_DENSITY = 1.0;
 
@@ -177,10 +180,9 @@ void getAtmosphereCoefficients(
 
     molecularScattering = RAYLEIGH_SCATTERING_BASE * exp(-h / MOLECULAR_HEIGHT_SCALE);
 
-    // Ozone: Gaussian profile centered at LayerBase + LayerThickness/2
     const float ozonePeak = 22.35;
     const float ozoneHalfThickness = 35.66 * 0.5;
-    float ozoneDensity = max(1.0 - abs(h - ozonePeak) / ozoneHalfThickness, 0.0) * 0.8;
+    float ozoneDensity = max(1.0 - abs(h - ozonePeak) / ozoneHalfThickness, 0.0);
     molecularAbsorption = OZONE_ABSORPTION_BASE * ozoneDensity;
     molecularAbsorption += 1e-3 * exp(-0.07771971 * pow(h + 1.0, 1.16364243));
 
@@ -189,30 +191,35 @@ void getAtmosphereCoefficients(
 
 // ── Multiple scattering ──────────────────────────────────────
 
-vec34 multiScatteringIsotropic(sampler2D transmitLUT, float cosTheta, float normalizedAlt, float r)
+vec34 multiScatteringGround(sampler2D transmitLUT, float cosTheta, float normalizedAlt, float r)
 {
     //return vec34(0.0);
     float solidAngle = 2.0 * PI * (1.0 - sqrt(max(0.0, r*r - PLANET_RADIUS*PLANET_RADIUS)) / r);
     vec34 transToGround = transmittanceFromLUT(transmitLUT, PLANET_RADIUS, cosTheta);
     vec34 transGroundToSample = transmittanceFromLUT(transmitLUT, PLANET_RADIUS, 1.0) / transmittanceFromLUT(transmitLUT, PLANET_RADIUS + normalizedAlt * ATMOSPHERE_THICKNESS, 1.0);
 
-    vec34 groundRadiance = (INV_4PI * solidAngle) *
+    return (INV_4PI * solidAngle) *
                           (GROUND_ALBEDO / PI) *
                           transToGround * transGroundToSample *
                           max(0.0, cosTheta);
+}
 
+vec34 multiScatteringMolecular(float cosTheta, float normalizedAlt)
+{
     float aerosolDensity = AEROSOL_BASE_DENSITY * exp(-normalizedAlt * ATMOSPHERE_THICKNESS / AEROSOL_HEIGHT_SCALE);
 
-    vec34 approxMulti = 0.02 *
-    #ifdef ENABLE_SPECTRAL
-    vec4(0.217, 0.347, 0.594, 1.0)
-    #else
-    vec3(0.2, 0.3, 1.0)
-    #endif
-    / (1.0 + 5.0 * exp(-17.92 * cosTheta))
-    / (aerosolDensity + 1.0);
+    float factor = smoothstep(0.0, 0.1, cosTheta);
 
-    return groundRadiance + approxMulti;
+    #ifdef ENABLE_SPECTRAL
+    vec4 color = vec4(0.217, 0.347, 0.594, 1.0);
+    #else
+    vec3 color = vec3(0.2, 0.35, 1.0);
+    #endif
+
+    //color = mix(vec34(0.5), color, factor);
+
+    vec34 approxMulti = 0.02 * color / (1.0 + 5.0 * exp(-17.92 * cosTheta)) / (aerosolDensity + 1.0);
+    return approxMulti;
 }
 
 // ── Transmittance ────────────────────────────────────────────
@@ -323,11 +330,9 @@ vec34 computeInscattering(sampler2D transmitLUT, vec3 sunDirection, vec3 rayDire
 
         vec34 transToSun = transmittanceFromLUT(transmitLUT, r, sunCosTheta);
 
-        vec34 multiIso = multiScatteringIsotropic(transmitLUT, sunCosTheta, normalizedH, r);
-
         vec34 singleScatter = (molecularScattering * rayleighPhaseVal
                             + aerosolScattering   * aerosolPhaseVal) * transToSun;
-        vec34 multiScatter  = multiIso * (molecularScattering + aerosolScattering);
+        vec34 multiScatter  = (multiScatteringGround(transmitLUT, sunCosTheta, normalizedH, r) + multiScatteringMolecular(sunCosTheta, normalizedH)) * (molecularScattering + aerosolScattering);// * (getBrightness(molecularScattering * transToSun) * 0.5 + 0.5);
 
         vec34 source = SUN_RADIANCE * (singleScatter + multiScatter);
 
