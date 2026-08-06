@@ -51,7 +51,7 @@ void main()
     vec2 clipXY = uv * 2.0 - 1.0;
     vec3 viewRay = mat3(gbufferModelViewInverse) * (gbufferProjectionInverse * vec4(clipXY, 1.0, 1.0)).xyz;
 
-    vec34 sunColor = transmittanceFromLUT({{IMG_TRANSMIT_LUT_SAMPLER}}, PLANET_RADIUS + max((eyeAltitude - 64.0) * 0.001, 0.001), clamp(sunDirection.y, -1.0, 1.0));
+    vec34 sunColor = transmittanceFromLUT({{IMG_TRANSMIT_LUT_SAMPLER}}, PLANET_RADIUS + max((eyeAltitude - 64.0) * 0.02, 0.001), clamp(sunDirection.y, -1.0, 1.0));
     #ifdef ENABLE_SPECTRAL
     sunColor.rgb = rgbFromSpectral(sunColor) * 0.2;
     #endif
@@ -59,7 +59,7 @@ void main()
     if (depth == 1.0)
     {
         vec3 viewDir = normalize(viewRay);
-        vec34 trans = transmittanceFromLUT({{IMG_TRANSMIT_LUT_SAMPLER}}, PLANET_RADIUS + max((eyeAltitude - 64.0) * 0.001, 0.001), clamp(viewRay.y, -1.0, 1.0));
+        vec34 trans = transmittanceFromLUT({{IMG_TRANSMIT_LUT_SAMPLER}}, PLANET_RADIUS + max((eyeAltitude - 64.0) * 0.02, 0.001), clamp(viewRay.y, -1.0, 1.0));
         #ifdef ENABLE_SPECTRAL
         trans.rgb = rgbFromSpectral(trans) * 0.2;
         #endif
@@ -70,7 +70,11 @@ void main()
         vec3 sky = texture({{IMG_SKY_SAMPLER}}, uv).rgb;
         sky = sky * (1.0 + dither) + dither * 0.05;
         sky += stars;
-        sky += float(dot(viewDir, normalize(sunDirection)) > 0.9999893) * 1000.0 * trans.rgb;
+        float sunCosAngle = dot(viewDir, normalize(sunDirection));
+        float sunIntensity = (smoothstep(0.999983, 1.00005, sunCosAngle) * 0.98 + 0.02) * (step(0.9999893, sunCosAngle));
+        //float glow = pow(max(sunCosAngle - 0.9999, 0.0), 2.0) * 5.0;
+        sky += (sunIntensity * 10000.0) * trans.rgb;
+        //sky += float(dot(viewDir, normalize(sunDirection)) > 0.9999893) * 1000.0 * trans.rgb;$
         imageStore({{IMG_BACK}}, pixelCoordinate, vec4(sky, 1.0));
         return;
     }

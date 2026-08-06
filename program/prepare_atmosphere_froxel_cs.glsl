@@ -55,7 +55,7 @@ void fillAndStop(ivec2 pixel, int startLayer, vec34 L, vec34 T)
 
 void main()
 {
-    ivec2 pixel = ivec2(gl_GlobalInvocationID.xy);
+    /*ivec2 pixel = ivec2(gl_GlobalInvocationID.xy);
     ivec2 froxelSize = ivec2(64, 64);
     if (any(greaterThanEqual(pixel, froxelSize))) return;
 
@@ -180,7 +180,7 @@ void main()
             fillAndStop(pixel, (i + 1) / 2, L, T);
             return;
         }
-    }
+    }*/
 
     // ── All 16 steps completed normally ──────────────────────
     // Layer 7 was already written at i=15, nothing more to do.

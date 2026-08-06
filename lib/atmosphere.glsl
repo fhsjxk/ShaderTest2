@@ -31,16 +31,19 @@ const vec4 OZONE_ABSORPTION_BASE        = vec4(3.472e-3, 3.914e-3, 1.349e-3, 11.
 
 const vec4 AEROSOL_ABSORPTION_BASE      = vec4(1) * 0.005;
 //const vec4 AEROSOL_SCATTERING_BASE      = vec4(0.9) * 0.01;
-const vec4 AEROSOL_SCATTERING_BASE      = vec4(1.5908, 1.7711, 2.0942, 2.4033) * 0.4 * 0.015;
+const vec4 AEROSOL_SCATTERING_BASE      = vec4(1.5908, 1.7711, 2.0942, 2.4033) * 0.6 * 0.02;
 
 const vec4 GROUND_ALBEDO         = vec4(0.57, 0.45, 0.37, 0.8) * 0.1; // = rgbFromSpectral^-1(vec3(15,45,100)/255)
 #else
-const vec3 SUN_RADIANCE          = vec3(1.24, 1.15, 1.00) * 6.0;
+//const vec3 SUN_RADIANCE          = vec3(1.24, 1.15, 1.00) * 6.0;
+//const vec3 SUN_RADIANCE          = vec3(1.02148, 0.98584, 1.0752) * 6.0;
+const vec3 SUN_RADIANCE          = vec3(1, 0.8794, 0.8267) * 7;
 
-const vec3 RAYLEIGH_SCATTERING_BASE = vec3(6.6049e-03, 1.2345e-02, 2.9413e-02); // ARPC spectral integral
+//const vec3 RAYLEIGH_SCATTERING_BASE = vec3(4.6049e-03, 1.2345e-02, 4.9413e-02);
+//const vec3 RAYLEIGH_SCATTERING_BASE = vec3(6.6049e-03, 1.2345e-02, 2.9413e-02); // ARPC spectral integral
 //const vec3 RAYLEIGH_SCATTERING_BASE = vec3(5.83e-03, 1.35e-02, 3.62e-02); // UE: vec3(41,95,255)/255 * 0.03624
 //const vec3 RAYLEIGH_SCATTERING_BASE = vec3(4.5e-03, 1.8e-02, 4.0e-02);
-//const vec3 RAYLEIGH_SCATTERING_BASE = vec3(41,95,255)/255.0 * 0.03624;
+const vec3 RAYLEIGH_SCATTERING_BASE = vec3(41,95,255)/255.0 * 0.03624;
 
 const vec3 OZONE_ABSORPTION_BASE = vec3(2.2911e-03, 1.5404e-03, 0.0);
 //const vec3 OZONE_ABSORPTION_BASE = vec3(83, 241, 11) / 255.0 * 0.002;
@@ -54,22 +57,29 @@ const vec3 OZONE_ABSORPTION_BASE = vec3(2.2911e-03, 1.5404e-03, 0.0);
 ////const vec3 AEROSOL_ABSORPTION_BASE = mix(vec3(0.1, 0.5, 0.8), vec3(0.8), 0.6) * 0.03 * 0.0;
 //const vec3 AEROSOL_ABSORPTION_BASE = mix(vec3(0.1, 0.5, 0.8), vec3(0.8), 0.99) * 0.01;
 //const vec3 AEROSOL_ABSORPTION_BASE = vec3(1.0, 1.0, 0.6) * 0.005;
-const vec3 AEROSOL_ABSORPTION_BASE = vec3(1) * 0.005;
+
+//const vec3 AEROSOL_ABSORPTION_BASE = vec3(1) * 0.005;
+//const vec3 AEROSOL_ABSORPTION_BASE = vec3(1,0.8,0.5) * 0.01;
+const vec3 AEROSOL_ABSORPTION_BASE = vec3(1,0.9,0.7) * 0.01;
+//const vec3 AEROSOL_ABSORPTION_BASE = vec3(1) * 0.01;
+
 //const vec3 AEROSOL_SCATTERING_BASE = mix(vec3(130, 185, 255)/255.0, vec3(1), 0.1) * 0.6;
 //const vec3 AEROSOL_SCATTERING_BASE = vec3(1.0) * 0.01;
 ////const vec3 AEROSOL_SCATTERING_BASE = mix(vec3(130, 185, 255)/255.0, vec3(1), 0.8) * 0.03;
 //const vec3 AEROSOL_SCATTERING_BASE = mix(vec3(130, 145, 255)/255.0, vec3(1), 0.3) * 0.01;
 //const vec3 AEROSOL_SCATTERING_BASE = mix(vec3(130, 145, 255)/255.0, vec3(1), 0.5) * 0.015;
-const vec3 AEROSOL_SCATTERING_BASE = vec3(175, 200, 255)/255.0 * 0.015;
+const vec3 AEROSOL_SCATTERING_BASE = vec3(175, 200, 255)/255.0 * 0.02;
 //const vec3 AEROSOL_SCATTERING_BASE = vec3(1) * 0.01;
 
 //const vec3 GROUND_ALBEDO         = vec3(15, 45, 100)/255.0;
-const vec3 GROUND_ALBEDO         = vec3(0.02, 0.04, 0.12);
+//const vec3 GROUND_ALBEDO         = vec3(0.04, 0.08, 0.24);
+const vec3 GROUND_ALBEDO         = vec3(15, 45, 100)/255.0;
 #endif
 
-const float MOLECULAR_HEIGHT_SCALE = 8.67;
+const float MOLECULAR_HEIGHT_SCALE = 8.0;
+//const float MOLECULAR_HEIGHT_SCALE = 8.67;
 
-const float AEROSOL_HEIGHT_SCALE = 1.2;
+const float AEROSOL_HEIGHT_SCALE = 1.5;
 const float AEROSOL_TURBIDITY    = 1.0;
 const float AEROSOL_BASE_DENSITY = 1.0;
 
@@ -138,7 +148,8 @@ float hgPhase(float cosTheta, float g)
 
 float aerosolPhase(float cosTheta)
 {
-    return mix(mix(hgPhase(cosTheta, 0.55), hgPhase(cosTheta, 0.8), 0.4), hgPhase(cosTheta, 0.96), 0.1) * 1.2; // multscatter
+    return mix(mix(mix(hgPhase(cosTheta, 0.55), hgPhase(cosTheta, 0.78), 0.4), hgPhase(cosTheta, 0.95), 0.1), hgPhase(cosTheta, 0.99), 0.05) * 1.2; // multscatter
+    //return mix(mix(mix(hgPhase(cosTheta, 0.5), hgPhase(cosTheta, 0.75), 0.45), hgPhase(cosTheta, 0.93), 0.08), hgPhase(cosTheta, 0.99), 0.02) * 1.2; // multscatter
 }
 
 float rayleighPhase(float cosTheta)
@@ -169,7 +180,7 @@ void getAtmosphereCoefficients(
     // Ozone: Gaussian profile centered at LayerBase + LayerThickness/2
     const float ozonePeak = 22.35;
     const float ozoneHalfThickness = 35.66 * 0.5;
-    float ozoneDensity = max(1.0 - abs(h - ozonePeak) / ozoneHalfThickness, 0.0);
+    float ozoneDensity = max(1.0 - abs(h - ozonePeak) / ozoneHalfThickness, 0.0) * 0.8;
     molecularAbsorption = OZONE_ABSORPTION_BASE * ozoneDensity;
     molecularAbsorption += 1e-3 * exp(-0.07771971 * pow(h + 1.0, 1.16364243));
 
@@ -283,6 +294,8 @@ vec34 computeInscattering(sampler2D transmitLUT, vec3 sunDirection, vec3 rayDire
 
     if (rayLength <= 0.0) return vec34(0.0);
 
+    //rayLength = min(rayLength, 100.0);
+
     float dt = rayLength / float(INSCATTERING_STEPS);
 
     vec34 L = vec34(0.0);
@@ -290,6 +303,8 @@ vec34 computeInscattering(sampler2D transmitLUT, vec3 sunDirection, vec3 rayDire
 
     float rayleighPhaseVal = rayleighPhase(-cosTheta);
     float aerosolPhaseVal  = aerosolPhase(-cosTheta);
+
+    //aerosolPhaseVal = mix(aerosolPhaseVal, 0.0, step(rayDirection.z, sunDirection.z));
 
     for (int i = 0; i < INSCATTERING_STEPS; ++i)
     {

@@ -56,10 +56,11 @@ void main()
     vec3 viewPos = (gbufferProjectionInverse * vec4(clipPos, 1.0)).xyz;
     vec3 viewRay = mat3(gbufferModelViewInverse) * viewPos;
 
-    vec34 sky = computeInscattering({{IMG_TRANSMIT_LUT_SAMPLER}}, sunDirection, normalize(viewRay), max((eyeAltitude - 64.0) * 0.001, 0.001));
+    vec34 sky = computeInscattering({{IMG_TRANSMIT_LUT_SAMPLER}}, sunDirection, normalize(viewRay), max((eyeAltitude - 64.0) * 0.02, 0.001));
     #ifdef ENABLE_SPECTRAL
     sky.rgb = rgbFromSpectral(sky);
     #endif
+    //sky.rgb = calcAdjustVibranceHDR(sky.rgb, 1.25);
     imageStore({{IMG_SKY}}, pixelCoord, vec4(sky.rgb, 1.0));
 }
 #endif

@@ -2,6 +2,7 @@
 #ifdef {{SHADER_FRAG}}
 #include "/lib/common.glsl"
 #include "/lib/options.glsl"
+#include "/lib/tonemap.glsl"
 
 uniform sampler2D {{RT_BACK}};
 //uniform sampler2D {{RT_SKY_TEST}};
@@ -45,11 +46,15 @@ void main()
     //float value = texelFetch({{IMG_LIGHTING_LUT_SAMPLER}}, ivec2({{POS_LIGHTING_LUT_VALUE}}), 0).r;
     //color.rgb = pow(aces(texelFetch({{RT_BACK}}, pixelCoordinate, 0).rgb / mix(value, 1.0, 0.03) / 2.0), vec3(1.0/2.2));
     color.rgb = pow(aces(texelFetch({{RT_BACK}}, pixelCoordinate, 0).rgb), vec3(1.0/2.2));
+    //color.rgb = pow(gt7ToneMap(texelFetch({{RT_BACK}}, pixelCoordinate, 0).rgb, 0, 0, false), vec3(1.0/2.2));
     //color.rgb = texture({{RT_BACK}}, texcoord).rgb;
     #if defined VIGNETTE_AMOUNT && VIGNETTE_AMOUNT != 0.0
-    float vignetteMask = texture(vignettetex, texcoord).r * VIGNETTE_AMOUNT + (1.0 - VIGNETTE_AMOUNT);
-    //color.rgb *= vignetteMask;
+    //float vignetteMask = texture(vignettetex, texcoord).r * VIGNETTE_AMOUNT + (1.0 - VIGNETTE_AMOUNT);
+    //color.rgb *= vignetteMask * vignetteMask;
     #endif
+
+    float vignetteMask = texture(vignettetex, texcoord).r * 0.1 + 0.9;
+    color.rgb *= vignetteMask * vignetteMask;
 
     //color.rgb = texelFetch(stardirtex, pixelCoordinate, 0).rgb;
     //color.rgb = color.rgb + texelFetch({{RT_BLOOM}}, pixelCoordinate, 0).rgb;
