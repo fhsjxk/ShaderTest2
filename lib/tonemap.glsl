@@ -394,4 +394,18 @@ vec3 gt7ToneMap(vec3 rgb, float targetNits, float paperWhiteNits, bool isHDR)
     return gt7ToneMappingApply(t, frameBufferRgb);
 }
 
+vec3 rdr2Tonemap(vec3 x)
+{
+    return clamp(
+        1.12425 *
+        (
+            ((0.22 * x + 0.03) * x + 0.00067) /
+            ((0.22 * x + 0.30) * x + 0.06)
+            - 0.01111
+        ),
+        0.0,
+        1.0
+    );
+}
+
 #endif

@@ -45,7 +45,8 @@ void main()
     //ivec2 pixelCoord = ivec2(gl_FragCoord.xy);$
     //float value = texelFetch({{IMG_LIGHTING_LUT_SAMPLER}}, ivec2({{POS_LIGHTING_LUT_VALUE}}), 0).r;
     //color.rgb = pow(aces(texelFetch({{RT_BACK}}, pixelCoordinate, 0).rgb / mix(value, 1.0, 0.03) / 2.0), vec3(1.0/2.2));
-    color.rgb = pow(aces(texelFetch({{RT_BACK}}, pixelCoordinate, 0).rgb), vec3(1.0/2.2));
+    //color.rgb = pow(aces(texelFetch({{RT_BACK}}, pixelCoordinate, 0).rgb), vec3(1.0/2.2));
+    color.rgb = pow(rdr2Tonemap(texelFetch({{RT_BACK}}, pixelCoordinate, 0).rgb), vec3(1.0/2.2));
     //color.rgb = pow(gt7ToneMap(texelFetch({{RT_BACK}}, pixelCoordinate, 0).rgb, 0, 0, false), vec3(1.0/2.2));
     //color.rgb = texture({{RT_BACK}}, texcoord).rgb;
     #if defined VIGNETTE_AMOUNT && VIGNETTE_AMOUNT != 0.0
