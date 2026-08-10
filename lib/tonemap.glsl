@@ -394,9 +394,74 @@ vec3 gt7ToneMap(vec3 rgb, float targetNits, float paperWhiteNits, bool isHDR)
     return gt7ToneMappingApply(t, frameBufferRgb);
 }
 
+vec3 rdr2ColorAdaptation(vec3 c)
+{
+    vec3 p;
+
+    p.x = dot(c, vec3(
+        0.5149,
+        0.3244,
+        0.1607
+    ));
+
+    p.y = dot(c, vec3(
+        0.2654,
+        0.6704,
+        0.0642
+    ));
+
+    p.z = dot(c, vec3(
+        0.0248,
+        0.1248,
+        0.8504
+    ));
+
+    p = max(p, vec3(0.01));
+
+    float t = (p.z + p.y) / p.x;
+    t = (t + 1.0) * 1.33 - 1.68;
+    t *= p.y;
+
+    vec3 target =
+        t * vec3(
+            0.36768,
+            0.53516,
+            1.0
+        );
+
+    target = clamp(target * 0.69775, 0.0, 1.0);
+
+    float amount =
+        clamp(
+            dot(c, vec3(0.3, 0.59, 0.11))
+            * 0.29956 - 0.14978,
+            0.0,
+            1.0
+        );
+
+    return mix(c, target, amount);
+}
+
+vec3 rdr2Transfer(vec3 x)
+{
+    vec3 lo = 9.26495 * x;
+
+    vec3 hi =
+        1.04714 *
+        pow(max(x, vec3(0.0)), vec3(0.45455))
+        - 0.04714;
+
+    return mix(
+        hi,
+        lo,
+        lessThan(x, vec3(0.003131))
+    );
+}
+
 vec3 rdr2Tonemap(vec3 x)
 {
-    return clamp(
+    x = rdr2ColorAdaptation(x);
+    x =  clamp(
         1.12425 *
         (
             ((0.22 * x + 0.03) * x + 0.00067) /
@@ -406,6 +471,8 @@ vec3 rdr2Tonemap(vec3 x)
         0.0,
         1.0
     );
+    x = rdr2Transfer(x);
+    return x;
 }
 
 #endif

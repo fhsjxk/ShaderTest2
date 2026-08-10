@@ -56,6 +56,8 @@ void main()
     sunColor.rgb = rgbFromSpectral(sunColor) * 0.2;
     #endif
 
+    sunColor.rgb = pow(sunColor.rgb, vec3(1.5)) * 1.15;
+
     if (depth == 1.0)
     {
         vec3 viewDir = normalize(viewRay);
@@ -73,7 +75,7 @@ void main()
         float sunCosAngle = dot(viewDir, normalize(sunDirection));
         float sunIntensity = (smoothstep(0.999983, 1.00005, sunCosAngle) * 0.98 + 0.02) * (step(0.9999893, sunCosAngle));
         //float glow = pow(max(sunCosAngle - 0.9999, 0.0), 2.0) * 5.0;
-        sky += (sunIntensity * 10000.0) * trans.rgb;
+        sky += (sunIntensity * 100.0) * trans.rgb;
         //sky += float(dot(viewDir, normalize(sunDirection)) > 0.9999893) * 1000.0 * trans.rgb;$
         imageStore({{IMG_BACK}}, pixelCoordinate, vec4(sky, 1.0));
         return;
@@ -93,14 +95,16 @@ void main()
     //shadow = vec3(1);
     float sunLightAmount = min(normal.a, float(shadow));
 
-    float fakeGI = 1.0 + (1.0 - lighting0.b) * (1.0 - normal.a) * float(shadow) * 3.0;
+    float temp1 = 2.5;
+
+    float fakeGI = 1.0 + (1.0 - lighting0.b) * (1.0 - normal.a) * float(shadow) * temp1;
     float fakeGIFactor = fakeGI * 0.05 + 0.95;
     vec3 baseAlbedo = adjustSaturationFast(baseColor, fakeGIFactor);
 
-    vec3 diffuseSun = sunLightAmount * (fakeGI * lighting0.g * sunColor.rgb + 3.0 * sunColor.rgb);
+    vec3 diffuseSun = sunLightAmount * (fakeGI * lighting0.g * sunColor.rgb + temp1 * sunColor.rgb);
 
     vec3 skyColor = vec3(0.4, 0.6, 1.0);
-    vec3 ambientLight = ambientAmount * lighting0.g * lighting0.b * skyColor * getBrightness(sunColor.rgb);
+    vec3 ambientLight = ambientAmount * lighting0.g * lighting0.b * skyColor * getBrightness(sunColor.rgb) * 0.5;
 
     vec3 localLightColor = vec3(1.0, 0.6, 0.2);
     vec3 localLight = pow(lighting0.r, 3.0) * localLightColor * 2.0;
@@ -109,10 +113,10 @@ void main()
     vec3 outColor = baseAlbedo * (diffuseSun + ambientLight + localLight) * MASTER_GAIN;
 
     // ── Froxel atmosphere volume fog ─────────────────────────
-    float viewDist = length(feetPlayerPosition);
-    vec4 froxel = sampleFroxel({{IMG_FROXEL_SAMPLER}}, uv, viewDist*0.0);
-    vec3 fogColor = froxel.rgb;
-    float fogTrans = froxel.a;
+    //float viewDist = length(feetPlayerPosition);
+    //vec4 froxel = sampleFroxel({{IMG_FROXEL_SAMPLER}}, uv, viewDist*0.0);
+    //vec3 fogColor = froxel.rgb;
+    //float fogTrans = froxel.a;
     //outColor = outColor * fogTrans + fogColor * (1.0 - fogTrans);
 
     // ── GGX 高光（粗糙度 0.2）─────────────────────────────────
@@ -122,9 +126,9 @@ void main()
     vec3 H = normalize(V + L);
     float NoH = max(dot(N, H), 0.0);
     //float spec = specularGTR(NoH, 0.5, 1.5);
-    float spec = specularGGX(NoH, 0.7);
-    float f = 0.03 + 0.2 * pow(max(1.0 - max(dot(N, V), 0.001), 0.001), 5.0);
-    vec3 specColor = spec * sunColor.rgb * 3.0 * sunLightAmount * f;
+    float spec = specularGGX(NoH, 0.75);
+    float f = 0.03 + 0.15 * pow(max(1.0 - max(dot(N, V), 0.001), 0.001), 5.0);
+    vec3 specColor = spec * sunColor.rgb * temp1 * sunLightAmount * f;
     outColor += specColor;
 
     imageStore({{IMG_BACK}}, pixelCoordinate, vec4(outColor, 1.0));
