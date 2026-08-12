@@ -63,6 +63,7 @@ IMG_LIST = [
 
 
 PIPELINE = {
+    "setup":     ["lighting_lut"],
     "prepare":   ["lighting_lut", "transmit_lut", "skyview", "atmosphere_froxel"],
     "deferred":  ["sky", "lighting"],
     "composite": ["mipmap", "lighting_lut",

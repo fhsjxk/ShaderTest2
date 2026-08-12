@@ -70,12 +70,12 @@ void main()
 
         vec3 dither = (getNoise(noisetex, uv, vec2(viewWidth, viewHeight)).rgb - 0.5) * 0.03;
         vec3 sky = texture({{IMG_SKY_SAMPLER}}, uv).rgb;
-        sky = sky * (1.0 + dither) + dither * 0.05;
+        sky = sky * (1.0 + dither) + dither * 0.01;
         sky += stars;
         float sunCosAngle = dot(viewDir, normalize(sunDirection));
         float sunIntensity = (smoothstep(0.999983, 1.00005, sunCosAngle) * 0.98 + 0.02) * (step(0.9999893, sunCosAngle));
         //float glow = pow(max(sunCosAngle - 0.9999, 0.0), 2.0) * 5.0;
-        sky += (sunIntensity * 100.0) * trans.rgb;
+        sky += (sunIntensity * 1000.0) * trans.rgb;
         //sky += float(dot(viewDir, normalize(sunDirection)) > 0.9999893) * 1000.0 * trans.rgb;$
         imageStore({{IMG_BACK}}, pixelCoordinate, vec4(sky, 1.0));
         return;
@@ -107,19 +107,17 @@ void main()
     vec3 ambientLight = ambientAmount * lighting0.g * lighting0.b * skyColor * getBrightness(sunColor.rgb) * 0.5;
 
     vec3 localLightColor = vec3(1.0, 0.6, 0.2);
-    vec3 localLight = pow(lighting0.r, 3.0) * localLightColor * 2.0;
+    vec3 localLight = pow(lighting0.r, 3.0) * localLightColor * 1.0;
 
     const float MASTER_GAIN = 0.6;
     vec3 outColor = baseAlbedo * (diffuseSun + ambientLight + localLight) * MASTER_GAIN;
 
-    // ── Froxel atmosphere volume fog ─────────────────────────
     //float viewDist = length(feetPlayerPosition);
     //vec4 froxel = sampleFroxel({{IMG_FROXEL_SAMPLER}}, uv, viewDist*0.0);
     //vec3 fogColor = froxel.rgb;
     //float fogTrans = froxel.a;
     //outColor = outColor * fogTrans + fogColor * (1.0 - fogTrans);
 
-    // ── GGX 高光（粗糙度 0.2）─────────────────────────────────
     vec3 N = normalize(normal.xyz * 2.0 - 1.0);
     vec3 V = mat3(gbufferModelViewInverse) * normalize(-viewPosition);
     vec3 L = normalize(sunDirection);
@@ -129,7 +127,7 @@ void main()
     float spec = specularGGX(NoH, 0.75);
     float f = 0.03 + 0.15 * pow(max(1.0 - max(dot(N, V), 0.001), 0.001), 5.0);
     vec3 specColor = spec * sunColor.rgb * temp1 * sunLightAmount * f;
-    outColor += specColor;
+    outColor += specColor * 0.3;
 
     imageStore({{IMG_BACK}}, pixelCoordinate, vec4(outColor, 1.0));
 }

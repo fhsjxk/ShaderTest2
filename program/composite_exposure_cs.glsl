@@ -25,7 +25,7 @@ void main()
     }
 
     float value = lightingLut.value;
-    vec3 color = texelFetch({{RT_BACK}}, pixelCoordinate, 0).rgb / mix(value, 1.0, 0.005) * 0.39;
+    vec3 color = texelFetch({{RT_BACK}}, pixelCoordinate, 0).rgb / mix(value, 1.0, 0.005) * 0.35;
 
     imageStore({{IMG_BACK}}, pixelCoordinate, vec4(color, 1.0));
 }

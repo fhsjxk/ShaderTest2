@@ -49,7 +49,7 @@ void main()
 
     color.rgb = pow(aces(color.rgb), vec3(1.0/2.2));
 
-    float vignetteMask = 1.0 - smoothstep(0.3, 1.7, distance(texcoord, vec2(0.5, 0.5))) * 1.0;
+    float vignetteMask = 1.0 - smoothstep(0.3, 1.7, distance(texcoord, vec2(0.5, 0.5))) * 0.5;
     color.rgb *= vignetteMask * vignetteMask;
 
     //color.rgb = rdr2Tonemap(texelFetch({{RT_BACK}}, pixelCoordinate, 0).rgb*1.5);

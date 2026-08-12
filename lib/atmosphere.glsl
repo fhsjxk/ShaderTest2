@@ -114,7 +114,7 @@ const vec3 AEROSOL_SCATTERING_BASE = vec3(190, 210, 255)/255.0 * 0.02;
 const vec3 GROUND_ALBEDO         = vec3(15, 45, 100)/255.0 * 0.7;
 #endif
 
-const float MOLECULAR_HEIGHT_SCALE = 8.0;
+const float MOLECULAR_HEIGHT_SCALE = 8.5;
 //const float MOLECULAR_HEIGHT_SCALE = 8.67;
 
 const float AEROSOL_HEIGHT_SCALE = 1.2;
@@ -186,7 +186,8 @@ float hgPhase(float cosTheta, float g)
 
 float aerosolPhase(float cosTheta)
 {
-    return mix(hgPhase(cosTheta, 0.6), mix(hgPhase(cosTheta, 0.92), hgPhase(cosTheta, 0.99), 0.1), 0.1) * 1.2;
+    return mix(hgPhase(cosTheta, 0.6), mix(hgPhase(cosTheta, 0.91), mix(hgPhase(cosTheta, 0.96), hgPhase(cosTheta, 0.99), 0.2), 0.3), 0.15) * 1.2;
+    //return mix(hgPhase(cosTheta, 0.6), mix(hgPhase(cosTheta, 0.93), hgPhase(cosTheta, 0.99), 0.1), 0.1) * 1.2;
     //return mix(mix(, hgPhase(cosTheta, 0.95), 0.05), hgPhase(cosTheta, 0.99), 0.9) * 1.2; // multscatter
     //return mix(mix(mix(hgPhase(cosTheta, 0.55), hgPhase(cosTheta, 0.78), 0.4), hgPhase(cosTheta, 0.95), 0.1), hgPhase(cosTheta, 0.99), 0.05) * 1.2; // multscatter
     //return mix(mix(mix(hgPhase(cosTheta, 0.5), hgPhase(cosTheta, 0.75), 0.45), hgPhase(cosTheta, 0.93), 0.08), hgPhase(cosTheta, 0.99), 0.02) * 1.2; // multscatter
@@ -230,7 +231,9 @@ void getAtmosphereCoefficients(
 
 vec34 multiScattering(sampler2D transmitLUT, float cosTheta, float normalizedAlt, float r)
 {
-    //return vec34(0.0);
+    #ifndef MULTISCATTERING
+    return vec34(0.0);
+    #else
     float solidAngle = 2.0 * PI * (1.0 - sqrt(max(0.0, r*r - PLANET_RADIUS*PLANET_RADIUS)) / r);
     vec34 transToGround = transmittanceFromLUT(transmitLUT, PLANET_RADIUS, cosTheta);
     vec34 transGroundToSample = transmittanceFromLUT(transmitLUT, PLANET_RADIUS, 1.0) / transmittanceFromLUT(transmitLUT, PLANET_RADIUS + normalizedAlt * ATMOSPHERE_THICKNESS, 1.0);
@@ -252,6 +255,7 @@ vec34 multiScattering(sampler2D transmitLUT, float cosTheta, float normalizedAlt
     // / (aerosolDensity + 1.0);
 
     return groundRadiance + approxMulti;
+    #endif
 }
 
 // ── Transmittance ────────────────────────────────────────────
