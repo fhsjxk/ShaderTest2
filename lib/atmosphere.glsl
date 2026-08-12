@@ -23,7 +23,7 @@ const float ATMOSPHERE_RADIUS    = PLANET_RADIUS + ATMOSPHERE_THICKNESS;
 #endif
 
 //#define UE
-#define UE_M_2
+#define UE_M_3
 
 #ifdef ENABLE_SPECTRAL
 const vec4 SUN_RADIANCE                 = vec4(1.68, 1.83, 1.99, 1.31);
@@ -57,12 +57,25 @@ const vec3 GROUND_ALBEDO         = vec3(0, 0, 0)/255.0;
 
 #elif defined(UE_M_2)
 
-const vec3 SUN_RADIANCE          = vec3(0.95, 0.95, 1) * 6.0;
+const vec3 SUN_RADIANCE          = vec3(0.95, 1.0, 1.0) * 6.0;
 //const vec3 RAYLEIGH_SCATTERING_BASE = vec3(41, 95, 233) / 255.0 * 0.03624;
 //const vec3 RAYLEIGH_SCATTERING_BASE = vec3(46, 89, 207) / 255.0 * 0.03624;
 const vec3 RAYLEIGH_SCATTERING_BASE = mix(vec3(46, 95, 233), vec3(46, 89, 207), 0.5) / 255.0 * 0.03624;
 const vec3 OZONE_ABSORPTION_BASE = vec3(190, 170, 0) / 255.0 * 0.0015;
 const vec3 AEROSOL_SCATTERING_BASE = vec3(185, 210, 255)/255.0 * 0.02;
+//const vec3 AEROSOL_SCATTERING_BASE = vec3(165, 200, 255)/255.0 * 0.02;
+const vec3 AEROSOL_ABSORPTION_BASE = vec3(1) * 0.005;
+const vec3 GROUND_ALBEDO         = vec3(20, 40, 100)/255.0 * 1;
+
+#elif defined(UE_M_3)
+
+const vec3 SUN_RADIANCE          = vec3(0.95, 0.95, 1.0) * 6.0;
+//const vec3 RAYLEIGH_SCATTERING_BASE = vec3(41, 95, 233) / 255.0 * 0.03624;
+//const vec3 RAYLEIGH_SCATTERING_BASE = vec3(46, 89, 207) / 255.0 * 0.03624;
+const vec3 RAYLEIGH_SCATTERING_BASE = mix(vec3(46, 95, 233), vec3(46, 89, 207), 0.5) / 255.0 * 0.03624;
+const vec3 OZONE_ABSORPTION_BASE = vec3(190, 170, 0) / 255.0 * 0.0005;
+const vec3 AEROSOL_SCATTERING_BASE = vec3(180, 205, 255)/255.0 * 0.05;
+//const vec3 AEROSOL_SCATTERING_BASE = vec3(165, 200, 255)/255.0 * 0.02;
 const vec3 AEROSOL_ABSORPTION_BASE = vec3(1) * 0.005;
 const vec3 GROUND_ALBEDO         = vec3(20, 40, 100)/255.0 * 1;
 
@@ -186,7 +199,12 @@ float hgPhase(float cosTheta, float g)
 
 float aerosolPhase(float cosTheta)
 {
-    return mix(hgPhase(cosTheta, 0.6), mix(hgPhase(cosTheta, 0.91), mix(hgPhase(cosTheta, 0.96), hgPhase(cosTheta, 0.99), 0.2), 0.3), 0.15) * 1.2;
+    #if defined(UE_M_3)
+    return mix(hgPhase(cosTheta, 0.65), mix(hgPhase(cosTheta, 0.83), mix(hgPhase(cosTheta, 0.93), hgPhase(cosTheta, 0.98), 0.3), 0.45), 0.35) * 1.3;
+    //return mix(hgPhase(cosTheta, 0.65), mix(hgPhase(cosTheta, 0.83), mix(hgPhase(cosTheta, 0.93), hgPhase(cosTheta, 0.98), 0.3), 0.45), 0.35) * 1.3;
+    #else
+    return mix(hgPhase(cosTheta, 0.6), mix(hgPhase(cosTheta, 0.91), mix(hgPhase(cosTheta, 0.96), hgPhase(cosTheta, 0.99), 0.3), 0.3), 0.15) * 1.3;
+    #endif
     //return mix(hgPhase(cosTheta, 0.6), mix(hgPhase(cosTheta, 0.93), hgPhase(cosTheta, 0.99), 0.1), 0.1) * 1.2;
     //return mix(mix(, hgPhase(cosTheta, 0.95), 0.05), hgPhase(cosTheta, 0.99), 0.9) * 1.2; // multscatter
     //return mix(mix(mix(hgPhase(cosTheta, 0.55), hgPhase(cosTheta, 0.78), 0.4), hgPhase(cosTheta, 0.95), 0.1), hgPhase(cosTheta, 0.99), 0.05) * 1.2; // multscatter

@@ -1,7 +1,7 @@
 #ifndef SETTINGS
 #define SETTINGS
 
-const float sunPathRotation = -30.0;
+const float sunPathRotation = -0.0;
 
 const int shadowMapResolution = 2048;
 

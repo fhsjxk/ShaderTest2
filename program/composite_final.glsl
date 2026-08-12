@@ -9,6 +9,7 @@ uniform sampler2D {{RT_BACK}};
 uniform sampler2D {{RT_BLOOM}};
 //uniform sampler2D {{IMG_SKYVIEW}};
 //uniform sampler2D {{IMG_BLOOM_SAMPLER}};$
+//uniform sampler2D {{IMG_SKYENV_SAMPLER}};
 uniform sampler2D colortex15;
 uniform sampler2D starcoltex;
 uniform sampler2D stardirtex;
@@ -47,7 +48,7 @@ void main()
     //color.rgb = pow(aces(texelFetch({{RT_BACK}}, pixelCoordinate, 0).rgb / mix(value, 1.0, 0.03) / 2.0), vec3(1.0/2.2));
     color.rgb = texelFetch({{RT_BACK}}, pixelCoordinate, 0).rgb;
 
-    color.rgb = pow(aces(color.rgb), vec3(1.0/2.2));
+    color.rgb = pow(aces(color.rgb), vec3(1.0 / GAMMA));
 
     float vignetteMask = 1.0 - smoothstep(0.3, 1.7, distance(texcoord, vec2(0.5, 0.5))) * 0.5;
     color.rgb *= vignetteMask * vignetteMask;

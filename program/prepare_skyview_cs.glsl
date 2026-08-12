@@ -7,14 +7,14 @@ uniform sampler2D {{IMG_TRANSMIT_LUT_SAMPLER}};
 
 layout({{IMG_SKYVIEW_FORMAT}}) uniform writeonly image2D {{IMG_SKYVIEW}};
 layout(local_size_x = 8, local_size_y = 8, local_size_z = 1) in;
-const ivec3 workGroups = ivec3(64, 32, 1); // 256x128
-//const ivec3 workGroups = ivec3(512, 256, 1); // 256x128
+//const ivec3 workGroups = ivec3(64, 32, 1); // 256x128
+const ivec3 workGroups = ivec3(512, 256, 1); // 256x128
 
 void main()
 {
     ivec2 pix = ivec2(gl_GlobalInvocationID.xy);
     ivec2 size = ivec2(512, 256);
-    //ivec2 size = ivec2(4096, 2048);
+    size = ivec2(4096, 2048);
     if (any(greaterThanEqual(pix, size))) return;
 
     vec2 uv = (vec2(pix) + 0.5) / vec2(size);
@@ -22,17 +22,17 @@ void main()
     // Ground at bottom (uv.y < 0.125), horizon at 0.125, sky above
     float groundFraction = 0.125;
     float theta;
-    if (uv.y < groundFraction)
-    {
-        theta = PI - (uv.y / groundFraction) * PI * 0.5;   // nadir → horizon
-    }
-    else
-    {
-        theta = PI * 0.5 * (1.0 - (uv.y - groundFraction) / (1.0 - groundFraction)); // horizon → zenith
-    }
-    //theta = PI - uv.y * PI;
+    //if (uv.y < groundFraction)
+    //{
+    //    theta = PI - (uv.y / groundFraction) * PI * 0.5;   // nadir → horizon
+    //}
+    //else
+    //{
+    //    theta = PI * 0.5 * (1.0 - (uv.y - groundFraction) / (1.0 - groundFraction)); // horizon → zenith
+    //}
+    theta = PI - uv.y * PI;
 
-    float phi   = uv.x * 2.0 * PI;
+    float phi   = uv.x * 2.0 * PI + PI;
     vec3 rayDir = vec3(sin(theta) * cos(phi), cos(theta), sin(theta) * sin(phi));
 
     float viewHeight = 0.001;

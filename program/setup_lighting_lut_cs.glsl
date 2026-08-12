@@ -13,6 +13,6 @@ const ivec3 workGroups = ivec3(1, 1, 1);
 
 void main()
 {
-    lightingLut.value = 0.5;
+    lightingLut.value = 0.3;
 }
 #endif
