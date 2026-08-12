@@ -73,10 +73,10 @@ const vec3 SUN_RADIANCE          = vec3(0.95, 0.95, 1.0) * 6.0;
 //const vec3 RAYLEIGH_SCATTERING_BASE = vec3(41, 95, 233) / 255.0 * 0.03624;
 //const vec3 RAYLEIGH_SCATTERING_BASE = vec3(46, 89, 207) / 255.0 * 0.03624;
 const vec3 RAYLEIGH_SCATTERING_BASE = mix(vec3(46, 95, 233), vec3(46, 89, 207), 0.5) / 255.0 * 0.03624;
-const vec3 OZONE_ABSORPTION_BASE = vec3(190, 170, 0) / 255.0 * 0.0005;
+const vec3 OZONE_ABSORPTION_BASE = vec3(190, 170, 0) / 255.0 * 0.0015;
 const vec3 AEROSOL_SCATTERING_BASE = vec3(180, 205, 255)/255.0 * 0.05;
 //const vec3 AEROSOL_SCATTERING_BASE = vec3(165, 200, 255)/255.0 * 0.02;
-const vec3 AEROSOL_ABSORPTION_BASE = vec3(1) * 0.005;
+const vec3 AEROSOL_ABSORPTION_BASE = vec3(1) * 0.0005;
 const vec3 GROUND_ALBEDO         = vec3(20, 40, 100)/255.0 * 1;
 
 #else
