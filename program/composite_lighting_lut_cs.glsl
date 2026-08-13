@@ -20,6 +20,6 @@ void main()
     int level = max(textureQueryLevels({{RT_BACK}}) - 2, 0);
     float previousValue = lightingLut.value;
     float currentValue = getBrightness(textureLod({{RT_BACK}}, vec2(0.5), level).rgb);
-    lightingLut.value = mix(previousValue, pow(currentValue, 0.7), frameTime * 1.0);
+    lightingLut.value = mix(previousValue, pow(currentValue, 0.7), frameTime * 2.0);
 }
 #endif

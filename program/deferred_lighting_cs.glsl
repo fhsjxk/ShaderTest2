@@ -56,7 +56,7 @@ void main()
     sunColor.rgb = rgbFromSpectral(sunColor) * 0.2;
     #endif
 
-    sunColor.rgb = pow(sunColor.rgb, vec3(1.5)) * 1.15;
+    //sunColor.rgb = pow(sunColor.rgb, vec3(1.5)) * 1.15;
 
     if (depth == 1.0)
     {
@@ -75,7 +75,7 @@ void main()
         float sunCosAngle = dot(viewDir, normalize(sunDirection));
         float sunIntensity = (smoothstep(0.999983, 1.00005, sunCosAngle) * 0.98 + 0.02) * (step(0.9999893, sunCosAngle));
         //float glow = pow(max(sunCosAngle - 0.9999, 0.0), 2.0) * 5.0;
-        sky += (sunIntensity * 1000.0) * trans.rgb;
+        sky += (sunIntensity * 10000.0) * trans.rgb;
         //sky += float(dot(viewDir, normalize(sunDirection)) > 0.9999893) * 1000.0 * trans.rgb;$
         imageStore({{IMG_BACK}}, pixelCoordinate, vec4(sky, 1.0));
         return;
@@ -103,8 +103,9 @@ void main()
 
     vec3 diffuseSun = sunLightAmount * (fakeGI * lighting0.g * sunColor.rgb + temp1 * sunColor.rgb);
 
-    vec3 skyColor = vec3(0.4, 0.6, 1.0);
-    vec3 ambientLight = ambientAmount * lighting0.g * lighting0.b * skyColor * getBrightness(sunColor.rgb) * 0.5;
+    //vec3 skyColor = vec3(0.4, 0.6, 1.0);
+    vec3 skyColor = vec3(0.5, 0.65, 1.0);
+    vec3 ambientLight = ambientAmount * lighting0.g * lighting0.b * skyColor * getBrightness(sunColor.rgb) * 0.75;
 
     vec3 localLightColor = vec3(1.0, 0.6, 0.2);
     vec3 localLight = pow(lighting0.r, 3.0) * localLightColor * 1.0;

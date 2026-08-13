@@ -56,7 +56,8 @@ class IMG:
 
 IMG_LIST = [
     IMG("IMG_TRANSMIT_LUT", image="RGBA16F", relative=False, size="256 64"),
-    IMG("IMG_SKYVIEW",      image="RGBA16F", relative=False, size="4096 2048"),
+    IMG("IMG_SKYVIEW",      image="RGBA16F", relative=False, size="512 256"),
+    #IMG("IMG_SKYVIEW",      image="RGBA16F", relative=False, size="4096 2048"),
     IMG("IMG_FROXEL",       image="RGBA16F", relative=False, clear=True, size="64 512"),
     IMG("IMG_SKY",          image="RGBA16F", relative=True,  size="0.125 0.125"),
 ]
@@ -65,7 +66,7 @@ IMG_LIST = [
 PIPELINE = {
     "setup":     ["lighting_lut"],
     "prepare":   ["lighting_lut", "transmit_lut", "skyview", "atmosphere_froxel"],
-    "deferred":  ["sky", "lighting"],
+    "deferred":  ["sky", "lighting"],# "cloud_volumetric"],
     "composite": ["mipmap", "lighting_lut",
                   "bloom_atlas",        # .vsh+.gsh+.fsh -> atlas packing only
                   "bloom_blur_h",       # .vsh+.fsh -> horizontal blur (buffer flip)
