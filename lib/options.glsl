@@ -18,7 +18,7 @@
 #define GAMMA 2.2 // [2.2]
 
 // ATMOSPHERE
-#define ENABLE_SPECTRAL
+//#define ENABLE_SPECTRAL
 #define MULTISCATTERING
 
 // DEBUG

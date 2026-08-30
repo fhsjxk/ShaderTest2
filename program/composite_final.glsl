@@ -29,8 +29,7 @@ layout(location = 0) out vec4 color;
 // LOCAL SETTINGS
 
 
-vec3 aces(vec3 x)
-//vec3 aces(vec3 x) { ... }$
+vec3 aces1(vec3 x)
 {
     const float a = 2.6;
     const float b = 0.7;
@@ -38,6 +37,16 @@ vec3 aces(vec3 x)
     const float d = 0.4;
     const float e = 1.2;
     return (x * (a * x + b)) / (x * (c * x + d) + e);
+}
+
+vec3 aces(vec3 x)
+{
+    const float a = 2.51;
+    const float b = 0.03;
+    const float c = 2.43;
+    const float d = 0.59;
+    const float e = 0.14;
+    return clamp((x * (a * x + b)) / (x * (c * x + d) + e), 0.0, 1.0);
 }
 
 void main()
@@ -48,7 +57,11 @@ void main()
     //color.rgb = pow(aces(texelFetch({{RT_BACK}}, pixelCoordinate, 0).rgb / mix(value, 1.0, 0.03) / 2.0), vec3(1.0/2.2));
     color.rgb = texelFetch({{RT_BACK}}, pixelCoordinate, 0).rgb;
 
-    color.rgb = pow(aces(color.rgb), vec3(1.0 / GAMMA));
+    //color.rgb = pow(whyWhatTonemap(color.rgb), vec3(1.0 / GAMMA));
+    //color.rgb = pow(aces1(color.rgb), vec3(1.0 / GAMMA));
+    color.rgb = pow(aces(color.rgb * 0.7), vec3(1.0 / GAMMA));
+    //color.rgb = pow(gt7ToneMap(color.rgb, 0.0, 0.0, false), vec3(1.0 / GAMMA));
+    //color.rgb = pow(color.rgb, vec3(1.0 / GAMMA));
 
     float vignetteMask = 1.0 - smoothstep(0.3, 1.7, distance(texcoord, vec2(0.5, 0.5))) * 0.5;
     color.rgb *= vignetteMask * vignetteMask;

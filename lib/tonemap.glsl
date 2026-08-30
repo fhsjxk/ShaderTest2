@@ -475,4 +475,28 @@ vec3 rdr2Tonemap(vec3 x)
     return x;
 }
 
+vec3 whyWhatTonemap(vec3 x)
+{
+    float br = dot(x, vec3(0.2126, 0.7152, 0.0722));
+
+    const float a = 2.6;
+    const float b = 0.7;
+    const float c = 2.62;
+    const float d = 0.4;
+    const float e = 1.2;
+    float bc  = (br * (a * br + b)) / (br * (c * br + d) + e);
+
+    const float qwe = 0.3;
+
+    br = br * qwe;
+
+    float cc = (br * (a * br + b)) / (br * (c * br + d) + e);
+
+    cc = clamp(cc, 0.0001, 1.0);
+
+    vec3 fx = mix(x, vec3(br), vec3(cc));
+
+    return fx * bc / cc * qwe;
+}
+
 #endif

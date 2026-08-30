@@ -32,9 +32,9 @@ const vec4 RAYLEIGH_SCATTERING_BASE     = vec4(6.605e-3, 1.067e-2, 1.842e-2, 3.1
 
 const vec4 OZONE_ABSORPTION_BASE        = vec4(3.472e-3, 3.914e-3, 1.349e-3, 11.03e-5) * 0.5;
 
-const vec4 AEROSOL_ABSORPTION_BASE      = vec4(1) * 0.005;
+const vec4 AEROSOL_ABSORPTION_BASE      = vec4(1) * 0.0003;
 //const vec4 AEROSOL_SCATTERING_BASE      = vec4(0.9) * 0.01;
-const vec4 AEROSOL_SCATTERING_BASE      = vec4(1.5908, 1.7711, 2.0942, 2.4033) * 0.6 * 0.02;
+const vec4 AEROSOL_SCATTERING_BASE      = vec4(1.5908, 1.7711, 2.0942, 2.4033) * 0.6 * 0.035;
 
 const vec4 GROUND_ALBEDO         = vec4(0.57, 0.45, 0.37, 0.8) * 0.1; // = rgbFromSpectral^-1(vec3(15,45,100)/255)
 #elif defined(UE)
@@ -69,15 +69,28 @@ const vec3 GROUND_ALBEDO         = vec3(20, 40, 100)/255.0 * 1;
 
 #elif defined(UE_M_3)
 
-const vec3 SUN_RADIANCE          = vec3(0.95, 0.98, 1.0) * 6.0;
+//const vec3 SUN_RADIANCE          = vec3(0.95, 0.98, 1.0) * 6.0;
+const vec3 SUN_RADIANCE          = (vec3(235.590, 208.802, 199.642)/vec3(255)) * 6.5;
+//const vec3 SUN_RADIANCE          = vec3(1) * 6.0;
 //const vec3 RAYLEIGH_SCATTERING_BASE = vec3(41, 95, 233) / 255.0 * 0.03624;
 //const vec3 RAYLEIGH_SCATTERING_BASE = vec3(46, 89, 207) / 255.0 * 0.03624;
 const vec3 RAYLEIGH_SCATTERING_BASE = mix(vec3(46, 95, 233), vec3(46, 89, 207), 0.5) / 255.0 * 0.03624;
-const vec3 OZONE_ABSORPTION_BASE = vec3(190, 170, 0) / 255.0 * 0.0015;
-const vec3 AEROSOL_SCATTERING_BASE = vec3(180, 203, 255)/255.0 * 0.05;
+const vec3 OZONE_ABSORPTION_BASE = vec3(190, 170, 0) / 255.0 * 0.0019;
+const vec3 AEROSOL_SCATTERING_BASE = vec3(175, 210, 255)/255.0 * 0.035;
+//const vec3 AEROSOL_SCATTERING_BASE = vec3(0.11322, 0.10138, 0.16846);
 //const vec3 AEROSOL_SCATTERING_BASE = vec3(165, 200, 255)/255.0 * 0.02;
-const vec3 AEROSOL_ABSORPTION_BASE = vec3(1) * 0.0005;
+const vec3 AEROSOL_ABSORPTION_BASE = vec3(1) * 0.0003;
 const vec3 GROUND_ALBEDO         = vec3(20, 40, 100)/255.0 * 1;
+
+//const vec3 SUN_RADIANCE          = vec3(0.95, 0.97, 1.0) * 6.0;
+////const vec3 RAYLEIGH_SCATTERING_BASE = vec3(41, 95, 233) / 255.0 * 0.03624;
+////const vec3 RAYLEIGH_SCATTERING_BASE = vec3(46, 89, 207) / 255.0 * 0.03624;
+//const vec3 RAYLEIGH_SCATTERING_BASE = mix(vec3(46, 95, 233), vec3(46, 89, 207), 0.5) / 255.0 * 0.03624;
+//const vec3 OZONE_ABSORPTION_BASE = vec3(190, 170, 0) / 255.0 * 0.0015;
+//const vec3 AEROSOL_SCATTERING_BASE = mix(vec3(180, 205, 255)/255.0, vec3(1), 0.0) * 0.03;
+////const vec3 AEROSOL_SCATTERING_BASE = vec3(165, 200, 255)/255.0 * 0.02;
+//const vec3 AEROSOL_ABSORPTION_BASE = vec3(1) * 0.0003;
+//const vec3 GROUND_ALBEDO         = mix(vec3(20, 40, 100)/255.0, vec3(0.3), 0.3) * 1;
 
 #else
 
@@ -130,9 +143,15 @@ const vec3 GROUND_ALBEDO         = vec3(15, 45, 100)/255.0 * 0.7;
 const float MOLECULAR_HEIGHT_SCALE = 8.5;
 //const float MOLECULAR_HEIGHT_SCALE = 8.67;
 
+#if defined(UE_M_3) || defined(ENABLE_SPECTRAL)
+const float AEROSOL_HEIGHT_SCALE = 1.2;
+const float AEROSOL_TURBIDITY    = 1.0;
+const float AEROSOL_BASE_DENSITY = 1.0 * (1.2/AEROSOL_HEIGHT_SCALE);
+#else
 const float AEROSOL_HEIGHT_SCALE = 1.2;
 const float AEROSOL_TURBIDITY    = 1.0;
 const float AEROSOL_BASE_DENSITY = 1.0;
+#endif
 
 const mat4x3 M = mat4x3(
     137.672389239975, -8.632904716299537, -1.7181567391931372,
@@ -195,12 +214,19 @@ float hgPhase(float cosTheta, float g)
     float g2 = g * g;
     float denom = 1.0 + g2 + 2.0 * g * cosTheta;
     return INV_4PI * (1.0 - g2) / (denom * sqrt(denom));
+    
+}
+
+float knPhase(float cosTheta, float e) {
+    return e / (2.0 * PI * (e * (1.0 - cosTheta) + 1.0) * log(2.0 * e + 1.0));
 }
 
 float aerosolPhase(float cosTheta)
 {
     #if defined(UE_M_3)
-    return mix(hgPhase(cosTheta, 0.65), mix(hgPhase(cosTheta, 0.84), mix(hgPhase(cosTheta, 0.93), hgPhase(cosTheta, 0.98), 0.35), 0.5), 0.35) * 1.3;
+    //return knPhase(-cosTheta, 2500);
+    //return hgPhase(cosTheta, 0.8);
+    return mix(hgPhase(cosTheta, 0.65), mix(hgPhase(cosTheta, 0.84), mix(hgPhase(cosTheta, 0.93), hgPhase(cosTheta, 0.98), 0.27), 0.48), 0.3) * 1.3;
     //return mix(hgPhase(cosTheta, 0.65), mix(hgPhase(cosTheta, 0.83), mix(hgPhase(cosTheta, 0.93), hgPhase(cosTheta, 0.98), 0.3), 0.45), 0.35) * 1.3;
     #else
     return mix(hgPhase(cosTheta, 0.6), mix(hgPhase(cosTheta, 0.91), mix(hgPhase(cosTheta, 0.96), hgPhase(cosTheta, 0.99), 0.3), 0.3), 0.15) * 1.3;
@@ -213,7 +239,8 @@ float aerosolPhase(float cosTheta)
 
 float rayleighPhase(float cosTheta)
 {
-    return (3.0 / (16.0 * PI)) * (1.0 + cosTheta * cosTheta);
+    return mix((1 / PI / 4) * 0.4 * -cosTheta + (1 / PI / 4) * 1.12, (3.0 / (16.0 * PI)) * (1.0 + cosTheta * cosTheta), 0.5);
+    //return (3.0 / (16.0 * PI)) * (1.0 + cosTheta * cosTheta);
 }
 
 // ── Atmospheric coefficients ─────────────────────────────────
@@ -331,6 +358,9 @@ vec34 computeTransmittanceLUT(vec2 uv)
 
 vec34 computeInscattering(sampler2D transmitLUT, vec3 sunDirection, vec3 rayDirection, float altitude)
 {
+    //return SUN_RADIANCE * 0.1;
+    //return AEROSOL_SCATTERING_BASE;
+
     vec3 rayOrigin = vec3(0.0, PLANET_RADIUS + altitude, 0.0);
     vec3 sunDirN = normalize(sunDirection);
 
@@ -384,8 +414,13 @@ vec34 computeInscattering(sampler2D transmitLUT, vec3 sunDirection, vec3 rayDire
 
         vec34 transToSun = transmittanceFromLUT(transmitLUT, r, sunCosTheta);
 
+        #if !defined(ENABLE_SPECTRAL) && defined(UE_M_3)
+        //aerosolScattering = aerosolScattering * mix(vec3(180, 205, 255) * 1.15 / 255.0,vec3(0.85),0.7) * (1 / 0.85); // fit to PT GT
+        #endif
+
         vec34 singleScatter = (molecularScattering * rayleighPhaseVal
-                            + aerosolScattering   * aerosolPhaseVal) * transToSun;
+                            + aerosolScattering * aerosolPhaseVal) * transToSun;
+        //vec34 multiScatter  = multiScattering(transmitLUT, sunCosTheta, normalizedH, r) * (mix(molecularScattering, aerosolScattering, 0.7) * 2.0);
         vec34 multiScatter  = multiScattering(transmitLUT, sunCosTheta, normalizedH, r) * (molecularScattering + aerosolScattering);
 
         vec34 source = SUN_RADIANCE * (singleScatter + multiScatter);
