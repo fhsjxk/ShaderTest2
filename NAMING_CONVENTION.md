@@ -4,6 +4,28 @@
 
 ---
 
+## 零、当前目录约定（2026-11 结构整理后）
+
+源码树与构建产物分离，构建由 `build.py` 完成，输出整个 shaderpack 到 Minecraft 目录。
+
+| 路径 | 职责 | 规则 |
+|------|------|------|
+| `options.glsl`（仓库根） | 用户可调开关与滑块 | 只有 `#define`；名字需同时出现在 `shaders.properties` 的 `sliders` 里才会显示 |
+| `settings.glsl`（仓库根） | Iris 内建 uniform 常量 | 不得放用户选项；与包布局相关的值一律放 `build.py` |
+| `lib/prelude.glsl` | **唯一入口** | 每个 stage 的第一条 include；聚合 settings/options/math/rt_formats |
+| `lib/rt_formats.glsl` | 由 `build.py` 生成的 RT 格式声明 | 手写会与 `RT_LIST` 脱节，勿改 |
+| `lib/*.glsl` | 纯函数库（math/color/brdf/shadow/atmosphere） | **不得包含 `main()`**，不得定义 Iris uniform |
+| `program/*.glsl` | pass 的 include 体（可含 `// {{SHADER_FRAG}}` 等标记） | 一个文件可同时含 frag/vert/geom 三段；compute pass 命名为 `*_cs.glsl` |
+| `build.py` | 模板替换 + 入口生成 + 输出 | `PIPELINE` 决定 pass 顺序，`RT_LIST`/`IMG_LIST` 是缓冲区的唯一真源 |
+
+约定要点：
+
+- **尺寸常量不写死在 shader 里**：使用 `{{RT_<NAME>_SIZE_X}}` / `{{IMG_<NAME>_SIZE_X}}`，由 `RT_LIST`/`IMG_LIST` 生成。
+- **`lib/` 内不得同时承担 pass 源码**（历史上的 `shadowmap.glsl` 同时含 `main()`，已拆分）。
+- 用户可见颜色/强度参数放在根 `options.glsl`；物理常量放在所属模块（如 `lib/atmosphere.glsl`），必须带单位与来源注释。
+
+---
+
 ## 一、发现的问题汇总
 
 ### 1. 函数命名风格不统一
@@ -284,10 +306,10 @@ void main()
 
 ### J. 代码组织建议
 
-1. **`lib/common.glsl`** — 所有全局常量和通用工具函数
-2. **`lib/atmosphere.glsl`** — 大气散射相关（应移除重复的 `PI` 定义，改为 `#include "/lib/common.glsl"`）
-3. **`lib/options.glsl`** — 所有用户可配置宏
-4. **`lib/shadow_common.glsl`** — 阴影相关共享函数（将 `distortShadowClipPos` 只保留在此文件）
+1. **`lib/prelude.glsl`** — 唯一入口，聚合 `settings.glsl` / `options.glsl` / `math.glsl` / `rt_formats.glsl`
+2. **`lib/atmosphere.glsl`** — 大气散射（物理常量集中于此，全部带单位与来源注释）
+3. **`options.glsl`**（仓库根） — 所有用户可配置宏；`settings.glsl`（仓库根）只放 Iris 内建常量
+4. **`lib/shadow.glsl`** — 阴影共享函数（`distortShadowClipPos` 等）；pass 本体在 `program/shadow.glsl`
 
 ---
 
@@ -295,9 +317,9 @@ void main()
 
 | 优先级 | 文件 | 问题 | 状态 |
 |--------|------|------|------|
-| 🔴 高 | `lib/common.glsl` | `PI` 重复定义；`RoughnessToExponent` 命名 | ✅ |
+| 🔴 高 | `lib/common.glsl` | `PI` 重复定义；`RoughnessToExponent` 命名 | ⚠️ 见勘误 |
 | 🔴 高 | `lib/atmosphere.glsl` | 缺少 `#include`；`PI` 重复；缩写展开 | ✅ |
-| 🔴 高 | `program/shadow_common.glsl` | 与 deferred_lighting 重复 `distortShadowClipPos` | ✅ |
+| 🔴 高 | `program/shadow_common.glsl` | 与 deferred_lighting 重复 `distortShadowClipPos` | ⚠️ 见勘误 |
 | 🔴 高 | `program/deferred_lighting_cs.glsl` | `{{RT_BACK_IMG}}`；重复定义；Allman风格 | ✅ |
 | 🟡 中 | `program/gbuffers_skybasic.glsl` | 缺少 `{{}}` 模板括号 | ✅ |
 | 🟡 中 | 4 个文件 | 文件名混合 camelCase | ✅ |
@@ -307,6 +329,12 @@ void main()
 ---
 
 ## 四、执行计划建议
+
+> ⚠️ **勘误（2026-11）**：下表中 2026-06-22 的记录有多处与当时的实际代码不符 ——
+> `PI` 实际在 `math.glsl` 而非 `common.glsl`；`program/shadow_common.glsl` 从未被构建引用，
+> 与 `lib/shadowmap.glsl` 重复。这些遗留问题已在 2026-11 的结构整理中按下方"零、当前目录约定"处理：
+> `common.glsl` 拆为 `prelude.glsl` + `rt_formats.glsl`，`shadowmap.glsl` 拆为 `lib/shadow.glsl` + `program/shadow.glsl`，
+> `shadow_common.glsl` 删除。
 
 > ✅ **已全部完成** (2026-06-22)
 

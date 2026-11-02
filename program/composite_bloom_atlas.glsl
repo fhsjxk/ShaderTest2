@@ -17,7 +17,7 @@
 //   mip0 quad: [0, vw+2), content [1, vw+1), 右出血 x=vw+1
 //   mip1 quad: [vw+2, ...), content [vw+3, ...), 左出血 x=vw+2
 //
-//   图集尺寸：≈ 1.505×viewWidth × 1.02×viewHeight
+//   图集尺寸由 build.py 的 RT_BLOOM 相对尺寸决定（当前 1.505×viewWidth × 1.02×viewHeight）
 //
 //   每个 mip 四周有 1px 出血边，防止双线性采样时跨 mip 出血。
 //   mip0 与 mip1 出血边相邻（x=vw+1 和 x=vw+2）但不重叠。
@@ -28,7 +28,7 @@
 
 // {{SHADER_VERT}}
 #ifdef {{SHADER_VERT}}
-#include "/lib/options.glsl"
+#include "/lib/prelude.glsl"
 
 uniform float viewWidth;
 uniform float viewHeight;
@@ -50,7 +50,7 @@ void main()
 
 // {{SHADER_GEOM}}
 #ifdef {{SHADER_GEOM}}
-#include "/lib/options.glsl"
+#include "/lib/prelude.glsl"
 
 layout(triangles) in;
 layout(triangle_strip, max_vertices = 40) out;
@@ -64,9 +64,9 @@ flat out int mipLevel;      // 当前 mip 层级
 void main()
 {
     // ── 图集尺寸 ─────────────────────────────────────────────
-    // RT_BLOOM 相对尺寸为 1.505×1.02（含 2px mip 间隙）
-    float atlasW = viewWidth * 1.505;
-    float atlasH = viewHeight * 1.02;
+    // 与 build.py 的 RT_BLOOM 尺寸保持一致（模板生成，勿手改）
+    float atlasW = viewWidth * {{RT_BLOOM_SIZE_X}};
+    float atlasH = viewHeight * {{RT_BLOOM_SIZE_Y}};
 
     // 右侧列起始 x：mip0 quad 右边界 = vw+2（不含），加 1px 死空间后从 vw+3 开始
     // mip0 quad: [0, vw+2), content: [1, vw+1)
@@ -85,8 +85,6 @@ void main()
 
     for (int mip = 0; mip < maxMips; mip++)
     {
-        if (mip >= maxMips) break;
-
         // 当前 mip 的内容尺寸（不含边框）
         int mw = (mip == 0) ? int(viewWidth)  : max(int(viewWidth)  >> mip, 1);
         int mh = (mip == 0) ? int(viewHeight) : max(int(viewHeight) >> mip, 1);
@@ -153,8 +151,7 @@ void main()
 
 // {{SHADER_FRAG}}
 #ifdef {{SHADER_FRAG}}
-#include "/lib/common.glsl"
-#include "/lib/options.glsl"
+#include "/lib/prelude.glsl"
 #include "/lib/color.glsl"
 
 uniform sampler2D {{RT_BACK}};
@@ -190,12 +187,6 @@ void main()
     float k = max(BLOOM_KNEE, 0.001);
     float weight = smoothstep(t - k, t + k, brightness) * (1.0 - BLOOM_MIN) + BLOOM_MIN;
     color.rgb *= weight;
-    brightness = getBrightness(color.rgb);
-    //color.rgb *= sqrt(brightness);
-
-    // ── 分辨率自适应的 mip 强度（相同像素尺寸 → 相同强度）─────
-    //float intensity = sqrt(float(mw) * float(mh)) / 63106.0 / (mipLevel + 0.01) + 1.0 ;
-    //color.rgb *= intensity;
 
     outColor = vec4(color.rgb, 1.0);
 }

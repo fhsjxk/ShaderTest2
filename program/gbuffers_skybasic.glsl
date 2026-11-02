@@ -1,6 +1,6 @@
 // {{SHADER_FRAG}}
 #ifdef {{SHADER_FRAG}}
-#include "/lib/common.glsl"
+#include "/lib/prelude.glsl"
 
 uniform sampler2D starColorTex;
 
@@ -10,15 +10,18 @@ mediump flat in int index;
 /* RENDERTARGETS: {RT_BACK} */
 layout(location = 0) out vec4 outColor;
 
+// Star disc falloff in quad UV space, and its peak radiance.
+const float STAR_DISC_INNER   = 0.1;
+const float STAR_DISC_OUTER   = 0.5;
+const float STAR_BRIGHTNESS   = 0.05;
+
 void main()
 {
-    // ── Soft disc from distance to triangle center ────────────
     float dist = length(uv);
-    float disc = 1.0 - smoothstep(0.1, 0.5, dist);
+    float disc = 1.0 - smoothstep(STAR_DISC_INNER, STAR_DISC_OUTER, dist);
 
-    // ── Read star color from data texture ─────────────────────
     ivec2 starUV = ivec2(index % 512, index / 512);
-    vec3 starCol = texelFetch(starColorTex, starUV, 0).rgb * 0.05;
+    vec3 starCol = texelFetch(starColorTex, starUV, 0).rgb * STAR_BRIGHTNESS;
 
     outColor = vec4(starCol * disc, 1.0);
 }
@@ -35,7 +38,7 @@ void main()
 
 // {{SHADER_GEOM}}
 #ifdef {{SHADER_GEOM}}
-#include "/lib/settings.glsl"
+#include "/lib/prelude.glsl"
 
 layout(triangles) in;
 layout(triangle_strip, max_vertices = 146) out;
@@ -52,6 +55,13 @@ uniform sampler2D starColorTex;
 
 const int TEX_SIZE = 512;
 const int STARS_PER_PATCH = 68;
+
+// Stars are emitted on a huge sphere; only the direction matters.
+const float STAR_DISTANCE = 1e3;
+// Quad radius per unit of the alpha channel stored in the star colour texture.
+const float STAR_SIZE_SCALE = 0.003;
+// Extra clip-space margin (fraction of w) so quads do not pop at the screen edge.
+const float STAR_CULL_MARGIN = 0.1;
 
 const vec2 offsets[3] = vec2[](
         vec2(-0.866025, -0.5),
@@ -70,7 +80,7 @@ bool inView(vec3 p)
 {
     vec4 clip = gbufferProjection * (gbufferModelView * vec4(p, 1.0));
 
-    float margin = clip.w * 0.1;
+    float margin = clip.w * STAR_CULL_MARGIN;
 
     return abs(clip.x) < clip.w + margin &&
            abs(clip.y) < clip.w + margin &&
@@ -79,7 +89,7 @@ bool inView(vec3 p)
 
 void emitStar(vec3 dir, float size, int starIndex)
 {
-    vec4 viewPosition = gbufferModelView * vec4(dir * 1e3, 1.0);
+    vec4 viewPosition = gbufferModelView * vec4(dir * STAR_DISTANCE, 1.0);
 
     index = starIndex;
 
@@ -87,7 +97,7 @@ void emitStar(vec3 dir, float size, int starIndex)
     {
         vec4 p = viewPosition;
 
-        p.xy += offsets[i] * size * 1e3;
+        p.xy += offsets[i] * size * STAR_DISTANCE;
 
         gl_Position = gbufferProjection * p;
 
@@ -127,9 +137,9 @@ void main()
         vec3 dir = rotZ * texelFetch(starDirectionTex, uv, 0).rgb;
 
         vec4 data = texelFetch(starColorTex, uv, 0);
-        float size = data.a * 0.003;
+        float size = data.a * STAR_SIZE_SCALE;
 
-        if (!inView(dir * 1e3)) continue;
+        if (!inView(dir * STAR_DISTANCE)) continue;
 
         emitStar(dir, size, starIndex);
     }

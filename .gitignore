@@ -2,3 +2,5 @@
 textures/projects/
 IrisShaders/
 refs/
+__pycache__/
+*.pyc

@@ -1,11 +1,12 @@
-// Shared shadow mapping utilities and shadow pass shaders
-// Included by: deferred_lighting_cs (compute), shadow pass (vert/frag via build.py)
+#ifndef SHADOW
+#define SHADOW
 
-#ifndef SHADOWMAP
-#define SHADOWMAP
+// Shared shadow-map helpers. Pass bodies live in /program/shadow.glsl.
 
-// ── Shadow clip-space distortion (Iris shadow map projection) ─
+#include "/lib/prelude.glsl"
 
+// Iris renders the shadow map with a dithered projection; undo the distortion
+// when reconstructing clip positions.
 vec3 distortShadowClipPos(vec3 shadowClipPosition)
 {
     float distortionFactor = length(shadowClipPosition.xy);
@@ -15,8 +16,6 @@ vec3 distortShadowClipPos(vec3 shadowClipPosition)
     return shadowClipPosition;
 }
 
-// ── Projection helpers ───────────────────────────────────────
-
 vec3 projectAndDivide(mat4 projectionMatrix, vec3 position)
 {
     vec4 homogeneousPosition = projectionMatrix * vec4(position, 1.0);
@@ -24,8 +23,6 @@ vec3 projectAndDivide(mat4 projectionMatrix, vec3 position)
 }
 
 #ifdef SHADER_COMP
-
-// ── Shadow sampling (compute only) ───────────────────────────
 
 vec3 getShadow(sampler2D shadowtex0, sampler2D shadowtex1, sampler2D shadowcolor0,
                vec3 shadowScreenPosition)
@@ -46,8 +43,6 @@ vec3 getShadow(sampler2D shadowtex0, sampler2D shadowtex1, sampler2D shadowcolor
     return shadowColor.rgb * (1.0 - shadowColor.a);
 }
 
-// ── Noise (compute only) ─────────────────────────────────────
-
 vec4 getNoise(sampler2D noisetex, vec2 coordinate, vec2 viewSize)
 {
     ivec2 screenCoordinate = ivec2(coordinate * viewSize);
@@ -55,7 +50,11 @@ vec4 getNoise(sampler2D noisetex, vec2 coordinate, vec2 viewSize)
     return texelFetch(noisetex, noiseCoordinate, 0);
 }
 
-// ── Soft shadow (compute only) ───────────────────────────────
+// Rotated 6x6 tap PCF. SHADOW_RADIUS is in shadow-map texels before the
+// per-sample divide by the shadow map resolution.
+const int   SHADOW_RANGE  = 3;
+const float SHADOW_RADIUS = 0.5;
+const int   SHADOW_SAMPLES = SHADOW_RANGE * SHADOW_RANGE * 4;
 
 vec3 getSoftShadow(sampler2D shadowtex0, sampler2D shadowtex1, sampler2D shadowcolor0,
                    sampler2D noisetex, vec4 shadowClipPosition, vec2 uv, vec2 viewSize)
@@ -67,9 +66,6 @@ vec3 getSoftShadow(sampler2D shadowtex0, sampler2D shadowtex1, sampler2D shadowc
     mat2 rotation = mat2(cosTheta, -sinTheta, sinTheta, cosTheta);
 
     vec3 shadowAccumulation = vec3(0.0);
-    const int SHADOW_RANGE = 3;
-    const float SHADOW_RADIUS = 0.5;
-    const int samples = SHADOW_RANGE * SHADOW_RANGE * 4;
 
     for (int x = -SHADOW_RANGE; x < SHADOW_RANGE; x++)
     {
@@ -87,39 +83,9 @@ vec3 getSoftShadow(sampler2D shadowtex0, sampler2D shadowtex1, sampler2D shadowc
         }
     }
 
-    return shadowAccumulation / float(samples);
+    return shadowAccumulation / float(SHADOW_SAMPLES);
 }
 
 #endif // SHADER_COMP
 
-#endif // SHADOWMAP
-
-// {{SHADER_FRAG}}
-#ifdef {{SHADER_FRAG}}
-uniform sampler2D gtexture;
-
-in float alpha;
-in vec2 texcoord;
-
-void main()
-{
-    if (texture(gtexture, texcoord).a * alpha < 0.52)
-    {
-        discard;
-    }
-}
-#endif
-
-// {{SHADER_VERT}}
-#ifdef {{SHADER_VERT}}
-out float alpha;
-out vec2 texcoord;
-
-void main()
-{
-    gl_Position = ftransform();
-    gl_Position.xyz = distortShadowClipPos(gl_Position.xyz);
-    texcoord = (gl_TextureMatrix[0] * gl_MultiTexCoord0).xy;
-    alpha = gl_Color.a;
-}
-#endif
+#endif // SHADOW

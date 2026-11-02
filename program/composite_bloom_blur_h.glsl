@@ -4,11 +4,9 @@
 
 // {{SHADER_FRAG}}
 #ifdef {{SHADER_FRAG}}
-#include "/lib/common.glsl"
-#include "/lib/options.glsl"
+#include "/lib/prelude.glsl"
 
 uniform sampler2D {{RT_BLOOM}};
-uniform sampler2D {{RT_BACK}};
 uniform float viewWidth;
 uniform float viewHeight;
 
@@ -35,8 +33,8 @@ void main()
     }
 
     // ── 预计算所有 mip AABB ──────────────────────────────────
-    float scaleX = float(atlasSize.x) / (viewWidth  * 1.505);
-    float scaleY = float(atlasSize.y) / (viewHeight * 1.02);
+    float scaleX = float(atlasSize.x) / (viewWidth  * {{RT_BLOOM_SIZE_X}});
+    float scaleY = float(atlasSize.y) / (viewHeight * {{RT_BLOOM_SIZE_Y}});
     int vw = int(viewWidth), vh = int(viewHeight);
     int maxMips = findMSB(int(max(viewWidth, viewHeight))) + 1;
 

@@ -1,21 +1,9 @@
-// Shared shadow utility functions
-
-#ifndef SHADOW_COMMON_UTILS
-#define SHADOW_COMMON_UTILS
-
-vec3 distortShadowClipPos(vec3 shadowClipPosition)
-{
-    float distortionFactor = length(shadowClipPosition.xy);
-    distortionFactor += 0.1;
-    shadowClipPosition.xy /= distortionFactor;
-    shadowClipPosition.z *= 0.5;
-    return shadowClipPosition;
-}
-
-#endif
+// Shadow pass: writes the alpha-tested depth used by the shadow map.
 
 // {{SHADER_FRAG}}
 #ifdef {{SHADER_FRAG}}
+#include "/lib/shadow.glsl"
+
 uniform sampler2D gtexture;
 
 in float alpha;
@@ -23,7 +11,7 @@ in vec2 texcoord;
 
 void main()
 {
-    if (texture(gtexture, texcoord).a * alpha < 0.52)
+    if (texture(gtexture, texcoord).a * alpha < ALPHA_TEST_THRESHOLD)
     {
         discard;
     }
@@ -32,6 +20,8 @@ void main()
 
 // {{SHADER_VERT}}
 #ifdef {{SHADER_VERT}}
+#include "/lib/shadow.glsl"
+
 out float alpha;
 out vec2 texcoord;
 

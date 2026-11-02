@@ -21,7 +21,7 @@ DIR_PROGRAM      = "program"
 DIR_WORLD        = "world0"
 
 GBUFFER_COMMON   = "gbuffers_common.glsl"
-SHADOW_COMMON    = "shadowmap.glsl"
+SHADOW_PROGRAM   = "shadow_pass.glsl"
 PROPERTIES       = "shaders.properties"
 
 
@@ -57,17 +57,15 @@ class IMG:
 IMG_LIST = [
     IMG("IMG_TRANSMIT_LUT", image="RGBA16F", relative=False, size="256 64"),
     IMG("IMG_SKYVIEW",      image="RGBA16F", relative=False, size="512 256"),
-    #IMG("IMG_SKYVIEW",      image="RGBA16F", relative=False, size="4096 2048"),
-    IMG("IMG_FROXEL",       image="RGBA16F", relative=False, clear=True, size="64 512"),
     IMG("IMG_SKY",          image="RGBA16F", relative=True,  size="0.125 0.125"),
 ]
 
 
 PIPELINE = {
-    "setup":     ["lighting_lut"],
-    "prepare":   ["lighting_lut", "transmit_lut", "skyview", "atmosphere_froxel"],
-    "deferred":  ["sky", "lighting"],# "cloud_volumetric"],
-    "composite": ["mipmap", "lighting_lut",
+    "setup":     ["exposure"],
+    "prepare":   ["transmit_lut", "skyview"],
+    "deferred":  ["sky", "lighting"],
+    "composite": ["mipmap", "exposure_adapt",
                   "bloom_atlas",        # .vsh+.gsh+.fsh -> atlas packing only
                   "bloom_blur_h",       # .vsh+.fsh -> horizontal blur (buffer flip)
                   "bloom_blur_v",       # .vsh+.fsh -> vertical blur (buffer flip)
@@ -83,7 +81,8 @@ GBUFFER_VARIANTS = [
 
 SHADOW_VARIANTS = [""]
 
-EXCLUDE_ROOT = {PROPERTIES, ".gitignore", "NAMING_CONVENTION.md"}
+EXCLUDE_ROOT = {PROPERTIES, ".gitignore", "NAMING_CONVENTION.md",
+                "ShaderTest2.code-workspace"}
 
 
 class TemplateEngine:
@@ -149,6 +148,13 @@ def build_template_vars() -> TemplateEngine:
         tmpl.add("{{" + short + "}}", f"colorimg{i}")
         tmpl.add("{{" + short + "_FORMAT}}", fmt.lower())
 
+        # Relative buffer size, so shaders sharing a layout never hardcode it.
+        sizeX, sizeY = rt.size.split()
+        for key in (name, short):
+            tmpl.add("{{" + key + "_SIZE}}",   rt.size)
+            tmpl.add("{{" + key + "_SIZE_X}}", sizeX)
+            tmpl.add("{{" + key + "_SIZE_Y}}", sizeY)
+
         rt_fmt_lines.append(f"const int colortex{i}Format = {fmt};")
         rt_size_lines.append(f"size.buffer.colortex{i} = {rt.size}")
 
@@ -163,6 +169,11 @@ def build_template_vars() -> TemplateEngine:
         tmpl.add("{{IMG_" + safe.upper() + "}}", f"img_{safe}")
         tmpl.add("{{IMG_" + safe.upper() + "_SAMPLER}}", f"sampler_{safe}")
         tmpl.add("{{IMG_" + safe.upper() + "_FORMAT}}", img.image.lower())
+
+        sizeX, sizeY = img.size.split()
+        tmpl.add("{{IMG_" + safe.upper() + "_SIZE}}",   img.size)
+        tmpl.add("{{IMG_" + safe.upper() + "_SIZE_X}}", sizeX)
+        tmpl.add("{{IMG_" + safe.upper() + "_SIZE_Y}}", sizeY)
 
         img_lines.append(
             f"image.img_{safe} = sampler_{safe} "
@@ -288,11 +299,15 @@ class ShaderBuilder:
     # ── shadows ────────────────────────────────────────────────
 
     def _shadows(self) -> None:
+        # The pass body lives in program/, which is not copied wholesale.
+        self.tmpl.apply_file(self.src_prog / SHADOW_PROGRAM,
+                             SHADERPACK / DIR_PROGRAM / SHADOW_PROGRAM)
+
         for variant in SHADOW_VARIANTS:
             sep  = "_" if variant else ""
             base = f"shadow{sep}{variant}"
             _emit_pair(self.tmpl, self.out_world, base,
-                       include=f"{DIR_LIB}/{SHADOW_COMMON}",
+                       include=f"{DIR_PROGRAM}/{SHADOW_PROGRAM}",
                        defines=[f"SHADOW{sep}{variant.upper()}"]
                        if variant else None)
 

@@ -13,7 +13,7 @@ uniform float viewHeight;
 
 layout({{IMG_SKY_FORMAT}}) uniform writeonly image2D {{IMG_SKY}};
 layout(local_size_x = 8, local_size_y = 8, local_size_z = 1) in;
-const vec2 workGroupsRender = vec2(0.125, 0.125);
+const vec2 workGroupsRender = vec2({{IMG_SKY_SIZE_X}}, {{IMG_SKY_SIZE_Y}});
 
 bool tileHasSky(ivec2 tileMin, ivec2 tileMax)
 {
@@ -56,11 +56,10 @@ void main()
     vec3 viewPos = (gbufferProjectionInverse * vec4(clipPos, 1.0)).xyz;
     vec3 viewRay = mat3(gbufferModelViewInverse) * viewPos;
 
-    vec34 sky = computeInscattering({{IMG_TRANSMIT_LUT_SAMPLER}}, sunDirection, normalize(viewRay), max((eyeAltitude - 64.0) * 0.02, 0.001));
+    vec34 sky = computeInscattering({{IMG_TRANSMIT_LUT_SAMPLER}}, sunDirection, normalize(viewRay), altitudeFromEyePosition(eyeAltitude));
     #ifdef ENABLE_SPECTRAL
     sky.rgb = rgbFromSpectral(sky);
     #endif
-    //sky.rgb = calcAdjustVibranceHDR(sky.rgb, 1.25);
     imageStore({{IMG_SKY}}, pixelCoord, vec4(sky.rgb, 1.0));
 }
 #endif

@@ -1,16 +1,28 @@
 #ifndef ATMOSPHERE
 #define ATMOSPHERE
 
-/*
- * From https://www.shadertoy.com/view/msXXDS
- */
+// Physically-inspired single scattering with a multi-scatter approximation,
+// LUT based (transmittance + sky-view). Structure follows
+// https://www.shadertoy.com/view/msXXDS (Bruneton style parameterisation).
+//
+// Units
+//   distances      km  (PLANET_RADIUS is the real Earth radius)
+//   coefficients   1/km (multiplied by exp(-altitude / scaleHeight))
+//   radiance       scene-linear, unitless: this pack has no absolute exposure
+//                  reference, everything is scaled to look right after ACES.
+//
+// Provenance of the numbers
+//   Height scales and the ozone tent profile follow the US Standard Atmosphere.
+//   The colour tints were fitted by eye against reference photographs; they are
+//   authored as 0-255 sRGB triples and intentionally used *without* gamma
+//   decoding, because the tuning was done in that space. Decoding them to linear
+//   will shift the sky hue, so change them only together with the multipliers.
 
-#include "/lib/math.glsl"
+#include "/lib/prelude.glsl"
 #include "/lib/color.glsl"
-#include "/lib/options.glsl"
 
-const int TRANSMITTANCE_STEPS    = 32;
-const int INSCATTERING_STEPS     = 32;
+const int TRANSMITTANCE_STEPS = 32;
+const int INSCATTERING_STEPS  = 32;
 
 const float PLANET_RADIUS        = 6371.0;
 const float ATMOSPHERE_THICKNESS = 100.0;
@@ -22,144 +34,93 @@ const float ATMOSPHERE_RADIUS    = PLANET_RADIUS + ATMOSPHERE_THICKNESS;
 #define vec34 vec3
 #endif
 
-//#define UE
-#define UE_M_3
+// Authored 0-255 tint → 0..1, used un-decoded (see header).
+#define UNIT_TINT(r, g, b) (vec3(r, g, b) / 255.0)
 
 #ifdef ENABLE_SPECTRAL
-const vec4 SUN_RADIANCE                 = vec4(1.68, 1.83, 1.99, 1.31);
 
-const vec4 RAYLEIGH_SCATTERING_BASE     = vec4(6.605e-3, 1.067e-2, 1.842e-2, 3.156e-2);
+// Four spectral bands. Radiance is band-integrated, not per-nanometre.
+const vec4 SUN_RADIANCE = vec4(1.68, 1.83, 1.99, 1.31);
 
-const vec4 OZONE_ABSORPTION_BASE        = vec4(3.472e-3, 3.914e-3, 1.349e-3, 11.03e-5) * 0.5;
+const vec4 RAYLEIGH_SCATTERING_BASE = vec4(6.605e-3, 1.067e-2, 1.842e-2, 3.156e-2);
 
-const vec4 AEROSOL_ABSORPTION_BASE      = vec4(1) * 0.0003;
-//const vec4 AEROSOL_SCATTERING_BASE      = vec4(0.9) * 0.01;
-const vec4 AEROSOL_SCATTERING_BASE      = vec4(1.5908, 1.7711, 2.0942, 2.4033) * 0.6 * 0.035;
+const vec4 OZONE_ABSORPTION_BASE    = vec4(3.472e-3, 3.914e-3, 1.349e-3, 11.03e-5) * 0.5;
 
-const vec4 GROUND_ALBEDO         = vec4(0.57, 0.45, 0.37, 0.8) * 0.1; // = rgbFromSpectral^-1(vec3(15,45,100)/255)
-#elif defined(UE)
+const vec4 AEROSOL_ABSORPTION_BASE  = vec4(1.0) * 0.0003;
+const vec4 AEROSOL_SCATTERING_BASE  = vec4(1.5908, 1.7711, 2.0942, 2.4033) * 0.6 * 0.035;
 
-const vec3 SUN_RADIANCE          = vec3(1) * 6.0;
-const vec3 RAYLEIGH_SCATTERING_BASE = vec3(41, 95, 233) / 255.0 * 0.03624;
-const vec3 OZONE_ABSORPTION_BASE = vec3(83, 241, 11) / 255.0 * 0.00199;
-const vec3 AEROSOL_ABSORPTION_BASE = vec3(147, 147, 147)/255.0 * 0.00077;
-const vec3 AEROSOL_SCATTERING_BASE = vec3(147, 147, 147)/255.0 * 0.00692;
-const vec3 GROUND_ALBEDO         = vec3(15, 45, 100)/255.0 * 0.7;
-
-#elif defined(UE_M)
-
-const vec3 SUN_RADIANCE          = vec3(1) * 6.0;
-const vec3 RAYLEIGH_SCATTERING_BASE = vec3(41, 95, 233) / 255.0 * 0.03624;
-const vec3 OZONE_ABSORPTION_BASE = vec3(255, 241, 11) / 255.0 * 0.001;
-const vec3 AEROSOL_ABSORPTION_BASE = vec3(1) * 0.01;
-const vec3 AEROSOL_SCATTERING_BASE = vec3(190, 210, 255)/255.0 * 0.02;
-const vec3 GROUND_ALBEDO         = vec3(0, 0, 0)/255.0;
-
-#elif defined(UE_M_2)
-
-const vec3 SUN_RADIANCE          = vec3(0.95, 1.0, 1.0) * 6.0;
-//const vec3 RAYLEIGH_SCATTERING_BASE = vec3(41, 95, 233) / 255.0 * 0.03624;
-//const vec3 RAYLEIGH_SCATTERING_BASE = vec3(46, 89, 207) / 255.0 * 0.03624;
-const vec3 RAYLEIGH_SCATTERING_BASE = mix(vec3(46, 95, 233), vec3(46, 89, 207), 0.5) / 255.0 * 0.03624;
-const vec3 OZONE_ABSORPTION_BASE = vec3(190, 170, 0) / 255.0 * 0.0015;
-const vec3 AEROSOL_SCATTERING_BASE = vec3(185, 210, 255)/255.0 * 0.02;
-//const vec3 AEROSOL_SCATTERING_BASE = vec3(165, 200, 255)/255.0 * 0.02;
-const vec3 AEROSOL_ABSORPTION_BASE = vec3(1) * 0.005;
-const vec3 GROUND_ALBEDO         = vec3(20, 40, 100)/255.0 * 1;
-
-#elif defined(UE_M_3)
-
-//const vec3 SUN_RADIANCE          = vec3(0.95, 0.98, 1.0) * 6.0;
-const vec3 SUN_RADIANCE          = (vec3(235.590, 208.802, 199.642)/vec3(255)) * 6.5;
-//const vec3 SUN_RADIANCE          = vec3(1) * 6.0;
-//const vec3 RAYLEIGH_SCATTERING_BASE = vec3(41, 95, 233) / 255.0 * 0.03624;
-//const vec3 RAYLEIGH_SCATTERING_BASE = vec3(46, 89, 207) / 255.0 * 0.03624;
-const vec3 RAYLEIGH_SCATTERING_BASE = mix(vec3(46, 95, 233), vec3(46, 89, 207), 0.5) / 255.0 * 0.03624;
-const vec3 OZONE_ABSORPTION_BASE = vec3(190, 170, 0) / 255.0 * 0.0019;
-const vec3 AEROSOL_SCATTERING_BASE = vec3(175, 210, 255)/255.0 * 0.035;
-//const vec3 AEROSOL_SCATTERING_BASE = vec3(0.11322, 0.10138, 0.16846);
-//const vec3 AEROSOL_SCATTERING_BASE = vec3(165, 200, 255)/255.0 * 0.02;
-const vec3 AEROSOL_ABSORPTION_BASE = vec3(1) * 0.0003;
-const vec3 GROUND_ALBEDO         = vec3(20, 40, 100)/255.0 * 1;
-
-//const vec3 SUN_RADIANCE          = vec3(0.95, 0.97, 1.0) * 6.0;
-////const vec3 RAYLEIGH_SCATTERING_BASE = vec3(41, 95, 233) / 255.0 * 0.03624;
-////const vec3 RAYLEIGH_SCATTERING_BASE = vec3(46, 89, 207) / 255.0 * 0.03624;
-//const vec3 RAYLEIGH_SCATTERING_BASE = mix(vec3(46, 95, 233), vec3(46, 89, 207), 0.5) / 255.0 * 0.03624;
-//const vec3 OZONE_ABSORPTION_BASE = vec3(190, 170, 0) / 255.0 * 0.0015;
-//const vec3 AEROSOL_SCATTERING_BASE = mix(vec3(180, 205, 255)/255.0, vec3(1), 0.0) * 0.03;
-////const vec3 AEROSOL_SCATTERING_BASE = vec3(165, 200, 255)/255.0 * 0.02;
-//const vec3 AEROSOL_ABSORPTION_BASE = vec3(1) * 0.0003;
-//const vec3 GROUND_ALBEDO         = mix(vec3(20, 40, 100)/255.0, vec3(0.3), 0.3) * 1;
+// Same tint as the RGB path, expressed as the pre-image of rgbFromSpectral.
+const vec4 GROUND_ALBEDO = vec4(0.57, 0.45, 0.37, 0.8) * 0.1;
 
 #else
 
-//const vec3 SUN_RADIANCE          = vec3(1.24, 1.15, 1.00) * 6.0;
-//const vec3 SUN_RADIANCE          = vec3(1.02148, 0.98584, 1.0752) * 6.0;
-//const vec3 SUN_RADIANCE          = vec3(1, 0.8794, 0.8267) * 7;
+// Scene radiance of the sun disc; ATMOSPHERE_SUN_INTENSITY is the exposure knob.
+const vec3 SUN_RADIANCE = UNIT_TINT(225.0, 210.0, 205.0) * ATMOSPHERE_SUN_INTENSITY;
 
-//const vec3 SUN_RADIANCE          = vec3(1.6695, 1.8824, 1.8963) * 4;
-//const vec3 SUN_RADIANCE          = vec3(1.500, 1.864, 1.715) * 4;
-//const vec3 SUN_RADIANCE          = vec3(1.72, 1.58, 1.44) * 4;
-const vec3 SUN_RADIANCE          = vec3(1.7, 1.85, 1.89) * 4;
+// Rayleigh: two authored tints blended to the hue used by the reference tuning,
+// then normalised to the blue channel of the classic 0.03624 baseline.
+const vec3 RAYLEIGH_SCATTERING_BASE =
+    mix(vec3(46.0, 95.0, 233.0), vec3(46.0, 89.0, 207.0), 0.5) / 255.0 * 0.03624;
 
-//const vec3 RAYLEIGH_SCATTERING_BASE = vec3(4.6049e-03, 1.2345e-02, 4.9413e-02);
-const vec3 RAYLEIGH_SCATTERING_BASE = vec3(6.6049e-03, 1.2345e-02, 2.9413e-02); // ARPC spectral integral
-//const vec3 RAYLEIGH_SCATTERING_BASE = vec3(5.83e-03, 1.35e-02, 3.62e-02); // UE: vec3(41,95,255)/255 * 0.03624
-//const vec3 RAYLEIGH_SCATTERING_BASE = vec3(4.5e-03, 1.8e-02, 4.0e-02);
-//const vec3 RAYLEIGH_SCATTERING_BASE = vec3(41,95,255)/255.0 * 0.03624;
+const vec3 OZONE_ABSORPTION_BASE = UNIT_TINT(190.0, 170.0, 0.0) * 0.0019;
 
-const vec3 OZONE_ABSORPTION_BASE = vec3(2.2911e-03, 1.5404e-03, 0.0);
-//const vec3 OZONE_ABSORPTION_BASE = vec3(83, 241, 11) / 255.0 * 0.002;
-//const vec3 OZONE_ABSORPTION_BASE = vec3(0);
+const vec3 AEROSOL_ABSORPTION_BASE = vec3(1.0) * 0.0003;
+const vec3 AEROSOL_SCATTERING_BASE = UNIT_TINT(160.0, 195.0, 255.0) * 0.03;
 
-//const vec3 AEROSOL_ABSORPTION_BASE = vec3(255, 255, 85)/255.0 * 0.015;
-//const vec3 AEROSOL_ABSORPTION_BASE = vec3(1.0) * 0.005;
-//const vec3 AEROSOL_ABSORPTION_BASE = vec3(0.05, 0.25, 0.5) * 0.01;
-//const vec3 AEROSOL_ABSORPTION_BASE = vec3(1.0) * 0.005;
-//const vec3 AEROSOL_ABSORPTION_BASE = mix(vec3(130, 185, 255)/255.0, vec3(1), 0.0) * 0.1;
-////const vec3 AEROSOL_ABSORPTION_BASE = mix(vec3(0.1, 0.5, 0.8), vec3(0.8), 0.6) * 0.03 * 0.0;
-//const vec3 AEROSOL_ABSORPTION_BASE = mix(vec3(0.1, 0.5, 0.8), vec3(0.8), 0.99) * 0.01;
-//const vec3 AEROSOL_ABSORPTION_BASE = vec3(1.0, 1.0, 0.6) * 0.005;
+// Water-like ground, matching the blue haze colour of the reference tuning.
+const vec3 GROUND_ALBEDO = UNIT_TINT(10.0, 40.0, 100.0);
 
-//const vec3 AEROSOL_ABSORPTION_BASE = vec3(1) * 0.005;
-//const vec3 AEROSOL_ABSORPTION_BASE = vec3(1,0.8,0.5) * 0.01;
-//const vec3 AEROSOL_ABSORPTION_BASE = vec3(1,0.9,0.7) * 0.01;
-const vec3 AEROSOL_ABSORPTION_BASE = vec3(1) * 0.01;
-
-//const vec3 AEROSOL_SCATTERING_BASE = mix(vec3(130, 185, 255)/255.0, vec3(1), 0.1) * 0.6;
-//const vec3 AEROSOL_SCATTERING_BASE = vec3(1.0) * 0.01;
-////const vec3 AEROSOL_SCATTERING_BASE = mix(vec3(130, 185, 255)/255.0, vec3(1), 0.8) * 0.03;
-//const vec3 AEROSOL_SCATTERING_BASE = mix(vec3(130, 145, 255)/255.0, vec3(1), 0.3) * 0.01;
-//const vec3 AEROSOL_SCATTERING_BASE = mix(vec3(130, 145, 255)/255.0, vec3(1), 0.5) * 0.015;
-const vec3 AEROSOL_SCATTERING_BASE = vec3(190, 210, 255)/255.0 * 0.02;
-//const vec3 AEROSOL_SCATTERING_BASE = vec3(1) * 0.01;
-
-//const vec3 GROUND_ALBEDO         = vec3(15, 45, 100)/255.0;
-//const vec3 GROUND_ALBEDO         = vec3(0.04, 0.08, 0.24);
-const vec3 GROUND_ALBEDO         = vec3(15, 45, 100)/255.0 * 0.7;
 #endif
 
+// Scale heights, km — US Standard Atmosphere (8.5 km molecular, ~1.2 km haze).
 const float MOLECULAR_HEIGHT_SCALE = 8.5;
-//const float MOLECULAR_HEIGHT_SCALE = 8.67;
+const float AEROSOL_HEIGHT_SCALE   = 1.2;
+const float AEROSOL_TURBIDITY      = 1.0;
+const float AEROSOL_BASE_DENSITY   = 1.0;
 
-#if defined(UE_M_3) || defined(ENABLE_SPECTRAL)
-const float AEROSOL_HEIGHT_SCALE = 1.2;
-const float AEROSOL_TURBIDITY    = 1.0;
-const float AEROSOL_BASE_DENSITY = 1.0 * (1.2/AEROSOL_HEIGHT_SCALE);
-#else
-const float AEROSOL_HEIGHT_SCALE = 1.2;
-const float AEROSOL_TURBIDITY    = 1.0;
-const float AEROSOL_BASE_DENSITY = 1.0;
-#endif
-
-const mat4x3 M = mat4x3(
+// Spectral (4 band) → linear sRGB. The matrix was fitted so that a 4-band sun
+// spectrum lands on the expected RGB ratios; the scale is a pure exposure match.
+const mat4x3 SPECTRAL_TO_RGB = mat4x3(
     137.672389239975, -8.632904716299537, -1.7181567391931372,
     32.549094028629234, 91.29801417199785, -12.005406444382531,
     -38.91428392614275, 34.31665471469816, 29.89044807197628,
     8.572844237945445, -11.103384660054624, 117.47585277566478
 );
+const float SPECTRAL_TO_RGB_SCALE = 0.025;
 
+// ═══ Scene glue ═════════════════════════════════════════════
+// Minecraft's Y axis is in blocks; the atmosphere model is in km. 1 block =
+// 0.02 km keeps the horizon at the height it has with the vanilla sky.
+const float MC_SEA_LEVEL    = 64.0;
+const float KM_PER_BLOCK    = 0.02;
+const float MIN_ALTITUDE_KM = 0.001;
+
+float altitudeFromEyePosition(float eyePosition)
+{
+    return max((eyePosition - MC_SEA_LEVEL) * KM_PER_BLOCK, MIN_ALTITUDE_KM);
+}
+
+// The sun disc is far smaller than a pixel, so it is faked by a very tight
+// smoothstep scaled up by SUN_DISC_RADIANCE to keep the integrated energy.
+// Fade bounds are the cosines of ~0.33° and ~0.26°; step() keeps the disc from
+// bleeding outside the sun's angular radius.
+const float SUN_DISC_FADE_START   = 0.999983;
+const float SUN_DISC_FADE_END     = 1.00005;
+const float SUN_DISC_EDGE_COS     = 0.9999893;
+const float SUN_DISC_MIN_FRACTION = 0.02;
+const float SUN_DISC_RADIANCE     = 1000.0;
+
+float sunDiscMask(float cosAngle)
+{
+    float disc = smoothstep(SUN_DISC_FADE_START, SUN_DISC_FADE_END, cosAngle);
+    return (disc * (1.0 - SUN_DISC_MIN_FRACTION) + SUN_DISC_MIN_FRACTION) * step(SUN_DISC_EDGE_COS, cosAngle);
+}
+
+// Sky-view LUT layout: the lowest SKYVIEW_GROUND_FRACTION of the V axis holds
+// the below-horizon half, the rest is the sky.
+const float SKYVIEW_GROUND_FRACTION = 0.125;
+
+// ═══ Geometry ═══════════════════════════════════════════════
 
 float distanceToTopAtmosphereBoundary(float r, float mu)
 {
@@ -179,6 +140,7 @@ vec34 transmittanceFromLUT(sampler2D transmitLUT, float r, float mu)
         return vec34(0.0);
     }
 
+    // Bruneton's (r, mu) → (distance, radius) reparameterisation.
     float H = sqrt(ATMOSPHERE_RADIUS * ATMOSPHERE_RADIUS - PLANET_RADIUS * PLANET_RADIUS);
     float rho = sqrt(max(0.0, r * r - PLANET_RADIUS * PLANET_RADIUS));
     float d = distanceToTopAtmosphereBoundary(r, mu);
@@ -194,7 +156,7 @@ vec34 transmittanceFromLUT(sampler2D transmitLUT, float r, float mu)
     #endif
 }
 
-
+// Returns the nearest positive intersection distance, or -1.0 when the ray misses.
 float raySphereIntersect(vec3 origin, vec3 dir, float radius)
 {
     float b = dot(origin, dir);
@@ -207,43 +169,64 @@ float raySphereIntersect(vec3 origin, vec3 dir, float radius)
     return (t0 >= 0.0) ? t0 : ((t1 >= 0.0) ? t1 : -1.0);
 }
 
-// ── Phase functions ──────────────────────────────────────────
+// ═══ Phase functions ════════════════════════════════════════
 
+// Henyey-Greenstein, normalised over the sphere. g > 0 is forward scattering.
 float hgPhase(float cosTheta, float g)
 {
     float g2 = g * g;
     float denom = 1.0 + g2 + 2.0 * g * cosTheta;
     return INV_4PI * (1.0 - g2) / (denom * sqrt(denom));
-    
 }
 
-float knPhase(float cosTheta, float e) {
-    return e / (2.0 * PI * (e * (1.0 - cosTheta) + 1.0) * log(2.0 * e + 1.0));
-}
+// Haze phase: four HG lobes weighted so the result stays energy normalised
+// (weights sum to 1), then gained by ATMOSPHERE_HAZE_GAIN. The multi-lobe shape
+// reproduces the wide aerosol forward peak plus the soft back-scatter of the
+// reference tuning; a single lobe cannot fit both ends of the curve.
+const float HAZE_G0 = 0.62;
+const float HAZE_G1 = 0.82;
+const float HAZE_G2 = 0.93;
+const float HAZE_G3 = 0.97;
 
-float aerosolPhase(float cosTheta)
+const float HAZE_W0 = 0.650;
+const float HAZE_W1 = 0.210;
+const float HAZE_W2 = 0.112;
+const float HAZE_W3 = 0.028;
+
+float hazePhase(float cosTheta)
 {
-    #if defined(UE_M_3)
-    //return knPhase(-cosTheta, 2500);
-    //return hgPhase(cosTheta, 0.8);
-    return mix(hgPhase(cosTheta, 0.65), mix(hgPhase(cosTheta, 0.84), mix(hgPhase(cosTheta, 0.93), hgPhase(cosTheta, 0.98), 0.27), 0.48), 0.3) * 1.3;
-    //return mix(hgPhase(cosTheta, 0.65), mix(hgPhase(cosTheta, 0.83), mix(hgPhase(cosTheta, 0.93), hgPhase(cosTheta, 0.98), 0.3), 0.45), 0.35) * 1.3;
-    #else
-    return mix(hgPhase(cosTheta, 0.6), mix(hgPhase(cosTheta, 0.91), mix(hgPhase(cosTheta, 0.96), hgPhase(cosTheta, 0.99), 0.3), 0.3), 0.15) * 1.3;
-    #endif
-    //return mix(hgPhase(cosTheta, 0.6), mix(hgPhase(cosTheta, 0.93), hgPhase(cosTheta, 0.99), 0.1), 0.1) * 1.2;
-    //return mix(mix(, hgPhase(cosTheta, 0.95), 0.05), hgPhase(cosTheta, 0.99), 0.9) * 1.2; // multscatter
-    //return mix(mix(mix(hgPhase(cosTheta, 0.55), hgPhase(cosTheta, 0.78), 0.4), hgPhase(cosTheta, 0.95), 0.1), hgPhase(cosTheta, 0.99), 0.05) * 1.2; // multscatter
-    //return mix(mix(mix(hgPhase(cosTheta, 0.5), hgPhase(cosTheta, 0.75), 0.45), hgPhase(cosTheta, 0.93), 0.08), hgPhase(cosTheta, 0.99), 0.02) * 1.2; // multscatter
+    float lobe = HAZE_W0 * hgPhase(cosTheta, HAZE_G0)
+               + HAZE_W1 * hgPhase(cosTheta, HAZE_G1)
+               + HAZE_W2 * hgPhase(cosTheta, HAZE_G2)
+               + HAZE_W3 * hgPhase(cosTheta, HAZE_G3);
+    return lobe * ATMOSPHERE_HAZE_GAIN;
 }
+
+// Rayleigh phase biased towards the anti-solar side so the horizon does not
+// wash out. The first term is a hand-shaped lobe, the second the analytic
+// Rayleigh phase; RAYLEIGH_ANALYTIC_MIX is the visual blend between them and is
+// not an energy-conserving parameter.
+const float RAYLEIGH_ANALYTIC_MIX = 0.8;
 
 float rayleighPhase(float cosTheta)
 {
-    return mix((1 / PI / 4) * 0.4 * -cosTheta + (1 / PI / 4) * 1.12, (3.0 / (16.0 * PI)) * (1.0 + cosTheta * cosTheta), 0.5);
-    //return (3.0 / (16.0 * PI)) * (1.0 + cosTheta * cosTheta);
+    float shaped   = (1.0 / PI / 4.0) * 0.4 * -cosTheta + (1.0 / PI / 4.0) * 1.12;
+    float analytic = (3.0 / (16.0 * PI)) * (1.0 + cosTheta * cosTheta);
+    return mix(shaped, analytic, RAYLEIGH_ANALYTIC_MIX);
 }
 
-// ── Atmospheric coefficients ─────────────────────────────────
+// ═══ Atmospheric coefficients ═══════════════════════════════
+
+// Ozone tent profile, km.
+const float OZONE_PEAK_ALTITUDE_KM  = 22.35;
+const float OZONE_HALF_THICKNESS_KM = 35.66 * 0.5;
+
+// Broadband absorption tail below the ozone peak. The three numbers come from a
+// least-squares fit to a measured profile; the original data set was never
+// recorded, so treat them as tuned rather than derived.
+const float OZONE_TAIL_SCALE    = 1e-3;
+const float OZONE_TAIL_DECAY    = 0.07771971;
+const float OZONE_TAIL_EXPONENT = 1.16364243;
 
 void getAtmosphereCoefficients(
     float h,
@@ -258,52 +241,55 @@ void getAtmosphereCoefficients(
 
     float aerosolDensity = AEROSOL_BASE_DENSITY * exp(-h / AEROSOL_HEIGHT_SCALE);
 
-    aerosolAbsorption  = AEROSOL_ABSORPTION_BASE  * aerosolDensity * AEROSOL_TURBIDITY;
-    aerosolScattering  = AEROSOL_SCATTERING_BASE  * aerosolDensity * AEROSOL_TURBIDITY;
+    aerosolAbsorption = AEROSOL_ABSORPTION_BASE * aerosolDensity * AEROSOL_TURBIDITY;
+    aerosolScattering = AEROSOL_SCATTERING_BASE * aerosolDensity * AEROSOL_TURBIDITY;
 
     molecularScattering = RAYLEIGH_SCATTERING_BASE * exp(-h / MOLECULAR_HEIGHT_SCALE);
 
-    const float ozonePeak = 22.35;
-    const float ozoneHalfThickness = 35.66 * 0.5;
-    float ozoneDensity = max(1.0 - abs(h - ozonePeak) / ozoneHalfThickness, 0.0);
+    float ozoneDensity = max(1.0 - abs(h - OZONE_PEAK_ALTITUDE_KM) / OZONE_HALF_THICKNESS_KM, 0.0);
     molecularAbsorption = OZONE_ABSORPTION_BASE * ozoneDensity;
-    molecularAbsorption += 1e-3 * exp(-0.07771971 * pow(h + 1.0, 1.16364243));
+    molecularAbsorption += OZONE_TAIL_SCALE * exp(-OZONE_TAIL_DECAY * pow(h + 1.0, OZONE_TAIL_EXPONENT));
 
     extinction = aerosolAbsorption + aerosolScattering + molecularAbsorption + molecularScattering;
 }
 
-// ── Multiple scattering ──────────────────────────────────────
+// ═══ Multiple scattering ════════════════════════════════════
+
+// Cheap approximation: ground bounce through the transmittance LUT plus an
+// isotropic term that brightens with solar elevation.
+const float MULTI_SCATTER_SCALE   = 0.01;
+const float MULTI_SCATTER_ROLLOFF = 5.0;
+const float MULTI_SCATTER_DECAY   = 17.92;
+
+#ifdef ENABLE_SPECTRAL
+const vec4 MULTI_SCATTER_TINT = vec4(0.217, 0.347, 0.594, 1.0);
+#else
+const vec3 MULTI_SCATTER_TINT = vec3(0.2, 0.35, 1.0);
+#endif
 
 vec34 multiScattering(sampler2D transmitLUT, float cosTheta, float normalizedAlt, float r)
 {
     #ifndef MULTISCATTERING
     return vec34(0.0);
     #else
-    float solidAngle = 2.0 * PI * (1.0 - sqrt(max(0.0, r*r - PLANET_RADIUS*PLANET_RADIUS)) / r);
+    float solidAngle = 2.0 * PI * (1.0 - sqrt(max(0.0, r * r - PLANET_RADIUS * PLANET_RADIUS)) / r);
     vec34 transToGround = transmittanceFromLUT(transmitLUT, PLANET_RADIUS, cosTheta);
-    vec34 transGroundToSample = transmittanceFromLUT(transmitLUT, PLANET_RADIUS, 1.0) / transmittanceFromLUT(transmitLUT, PLANET_RADIUS + normalizedAlt * ATMOSPHERE_THICKNESS, 1.0);
+    vec34 transGroundToSample = transmittanceFromLUT(transmitLUT, PLANET_RADIUS, 1.0)
+                              / transmittanceFromLUT(transmitLUT, PLANET_RADIUS + normalizedAlt * ATMOSPHERE_THICKNESS, 1.0);
 
     vec34 groundRadiance = (INV_4PI * solidAngle) *
-                          (GROUND_ALBEDO / PI) *
-                          transToGround * transGroundToSample *
-                          max(0.0, cosTheta);
+                           (GROUND_ALBEDO / PI) *
+                           transToGround * transGroundToSample *
+                           max(0.0, cosTheta);
 
-    float aerosolDensity = AEROSOL_BASE_DENSITY * exp(-normalizedAlt * ATMOSPHERE_THICKNESS / AEROSOL_HEIGHT_SCALE);
-
-    vec34 approxMulti = 0.01 *
-    #ifdef ENABLE_SPECTRAL
-    vec4(0.217, 0.347, 0.594, 1.0)
-    #else
-    vec3(0.2, 0.35, 1.0)
-    #endif
-    / (1.0 + 5.0 * exp(-17.92 * cosTheta));
-    // / (aerosolDensity + 1.0);
+    vec34 approxMulti = MULTI_SCATTER_SCALE * MULTI_SCATTER_TINT
+                      / (1.0 + MULTI_SCATTER_ROLLOFF * exp(-MULTI_SCATTER_DECAY * cosTheta));
 
     return groundRadiance + approxMulti;
     #endif
 }
 
-// ── Transmittance ────────────────────────────────────────────
+// ═══ Transmittance ══════════════════════════════════════════
 
 vec34 computeTransmittance(vec3 origin, vec3 rayDirection)
 {
@@ -354,13 +340,10 @@ vec34 computeTransmittanceLUT(vec2 uv)
     return computeTransmittance(origin, rayDirection);
 }
 
-// ── Inscattering ─────────────────────────────────────────────
+// ═══ Inscattering ═══════════════════════════════════════════
 
 vec34 computeInscattering(sampler2D transmitLUT, vec3 sunDirection, vec3 rayDirection, float altitude)
 {
-    //return SUN_RADIANCE * 0.1;
-    //return AEROSOL_SCATTERING_BASE;
-
     vec3 rayOrigin = vec3(0.0, PLANET_RADIUS + altitude, 0.0);
     vec3 sunDirN = normalize(sunDirection);
 
@@ -385,17 +368,13 @@ vec34 computeInscattering(sampler2D transmitLUT, vec3 sunDirection, vec3 rayDire
 
     if (rayLength <= 0.0) return vec34(0.0);
 
-    //rayLength = min(rayLength, 100.0);
-
     float dt = rayLength / float(INSCATTERING_STEPS);
 
     vec34 L = vec34(0.0);
     vec34 T = vec34(1.0);
 
     float rayleighPhaseVal = rayleighPhase(-cosTheta);
-    float aerosolPhaseVal  = aerosolPhase(-cosTheta);
-
-    //aerosolPhaseVal = mix(aerosolPhaseVal, 0.0, step(rayDirection.z, sunDirection.z));
+    float hazePhaseVal     = hazePhase(-cosTheta);
 
     for (int i = 0; i < INSCATTERING_STEPS; ++i)
     {
@@ -414,17 +393,14 @@ vec34 computeInscattering(sampler2D transmitLUT, vec3 sunDirection, vec3 rayDire
 
         vec34 transToSun = transmittanceFromLUT(transmitLUT, r, sunCosTheta);
 
-        #if !defined(ENABLE_SPECTRAL) && defined(UE_M_3)
-        //aerosolScattering = aerosolScattering * mix(vec3(180, 205, 255) * 1.15 / 255.0,vec3(0.85),0.7) * (1 / 0.85); // fit to PT GT
-        #endif
-
         vec34 singleScatter = (molecularScattering * rayleighPhaseVal
-                            + aerosolScattering * aerosolPhaseVal) * transToSun;
-        //vec34 multiScatter  = multiScattering(transmitLUT, sunCosTheta, normalizedH, r) * (mix(molecularScattering, aerosolScattering, 0.7) * 2.0);
-        vec34 multiScatter  = multiScattering(transmitLUT, sunCosTheta, normalizedH, r) * (molecularScattering + aerosolScattering);
+                             + aerosolScattering * hazePhaseVal) * transToSun;
+        vec34 multiScatter  = multiScattering(transmitLUT, sunCosTheta, normalizedH, r)
+                            * (molecularScattering + aerosolScattering);
 
         vec34 source = SUN_RADIANCE * (singleScatter + multiScatter);
 
+        // Analytic integration of a constant source over the step.
         vec34 stepT = exp(-ext * dt);
         vec34 integrated = (source - source * stepT) / max(ext, vec34(1e-6));
 
@@ -435,21 +411,12 @@ vec34 computeInscattering(sampler2D transmitLUT, vec3 sunDirection, vec3 rayDire
     return L;
 }
 
-vec34 computeAtmosphereLUT(sampler2D transmitLUT, vec3 sunDir, vec2 uv)
-{
-    float cosTheta = uv.x * 2.0 - 1.0;
-    vec3 rayDirection = vec3(sqrt(max(0.0, 1.0 - cosTheta * cosTheta)), cosTheta, 0.0);
-
-    float r = mix(0.0, ATMOSPHERE_THICKNESS, uv.y);
-
-    return computeInscattering(transmitLUT, sunDir, rayDirection, r);
-}
-
-// ── Sky view LUT sampling (lat-long) ────────────────────────
+// ═══ Sky-view LUT sampling (lat-long) ═══════════════════════
 
 vec3 sampleSkyViewLUT(sampler2D skyViewLUT, vec3 viewDir, float viewHeight)
 {
-    // Ground at bottom (v < 0.125), horizon at 0.125, sky above
+    // Horizon sits at SKYVIEW_GROUND_FRACTION; below it the V axis is remapped
+    // linearly onto the ground half of the LUT.
     float r  = PLANET_RADIUS + viewHeight;
     float Vh = sqrt(max(0.0, r * r - PLANET_RADIUS * PLANET_RADIUS));
     float thetaHorizon = acos(clamp(Vh / r, 0.0, 1.0));
@@ -457,15 +424,14 @@ vec3 sampleSkyViewLUT(sampler2D skyViewLUT, vec3 viewDir, float viewHeight)
     float phi   = atan(viewDir.z, viewDir.x) + PI;
     float theta = acos(clamp(viewDir.y, -1.0, 1.0));
 
-    float groundFraction = 0.125;
     float v;
     if (theta > thetaHorizon)
     {
-        v = groundFraction * (1.0 - (theta - thetaHorizon) / max(PI - thetaHorizon, 1e-6));
+        v = SKYVIEW_GROUND_FRACTION * (1.0 - (theta - thetaHorizon) / max(PI - thetaHorizon, 1e-6));
     }
     else
     {
-        v = groundFraction + (1.0 - theta / max(thetaHorizon, 1e-6)) * (1.0 - groundFraction);
+        v = SKYVIEW_GROUND_FRACTION + (1.0 - theta / max(thetaHorizon, 1e-6)) * (1.0 - SKYVIEW_GROUND_FRACTION);
     }
     vec2 uv = vec2(phi / (2.0 * PI), clamp(v, 0.0, 1.0));
     return texture(skyViewLUT, uv).rgb;
@@ -473,48 +439,7 @@ vec3 sampleSkyViewLUT(sampler2D skyViewLUT, vec3 viewDir, float viewHeight)
 
 vec3 rgbFromSpectral(vec4 L)
 {
-    return M * L * 0.025;
-}
-
-// ── Froxel (screen-space atmosphere volume) ─────────────────
-// Froxel 使用指数分布距离：100m ~ 100km
-// 层 0 = 最近（~100m 累积），层 7 = 最远（~100km 累积）
-
-const int    FROXEL_LAYERS      = 8;
-const float  FROXEL_MIN_DIST    = 0.1;    // 100 m
-const float  FROXEL_MAX_DIST    = 1000.0; // 100 km
-
-float froxelDepthToLayer(float viewDist)
-{
-    // Maps viewDist in [FROXEL_MIN_DIST, FROXEL_MAX_DIST] to layer index [0, 7]
-    // using logarithmic distribution to match froxel computation
-    float clamped = clamp(viewDist, FROXEL_MIN_DIST, FROXEL_MAX_DIST);
-    float norm = log(clamped / FROXEL_MIN_DIST) / log(FROXEL_MAX_DIST / FROXEL_MIN_DIST);
-    return norm * float(FROXEL_LAYERS) - 1.0;
-}
-
-vec4 sampleFroxel(sampler2D froxelTex, vec2 screenUV, float viewDist)
-{
-    // Map view distance to continuous layer index
-    float layerF = froxelDepthToLayer(viewDist);
-    float layer  = clamp(layerF, 0.0, float(FROXEL_LAYERS - 1));
-
-    // Bilinear within layer + linear across layers = trilinear
-    float layer0 = floor(layer);
-    float layer1 = min(layer0 + 1.0, float(FROXEL_LAYERS - 1));
-    float lerpFrac = layer - layer0;
-
-    // Froxel atlas: 64 wide, 512 tall (8 layers × 64)
-    float atlasH = 512.0;
-    float layerH = 64.0;
-
-    vec2 uv0 = vec2(screenUV.x, (screenUV.y * layerH + layer0 * layerH) / atlasH);
-    vec2 uv1 = vec2(screenUV.x, (screenUV.y * layerH + layer1 * layerH) / atlasH);
-
-    vec4 v0 = texture(froxelTex, uv0);
-    vec4 v1 = texture(froxelTex, uv1);
-
-    return mix(v0, v1, lerpFrac);
+    return SPECTRAL_TO_RGB * L * SPECTRAL_TO_RGB_SCALE;
 }
 
 #endif

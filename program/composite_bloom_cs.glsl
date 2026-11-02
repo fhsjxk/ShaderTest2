@@ -27,8 +27,7 @@
 
 // {{SHADER_COMP}}
 #ifdef {{SHADER_COMP}}
-#include "/lib/common.glsl"
-#include "/lib/options.glsl"
+#include "/lib/prelude.glsl"
 
 uniform sampler2D noisetex;
 uniform sampler2D {{RT_BACK}};
@@ -41,6 +40,15 @@ layout({{IMG_BACK_FORMAT}}) uniform writeonly image2D {{IMG_BACK}};
 layout(local_size_x = 8, local_size_y = 8, local_size_z = 1) in;
 
 const vec2 workGroupsRender = vec2(1.0, 1.0);
+
+// 图集几何（与 composite_bloom_atlas 一致）：mip0 内容区从 (1,1) 开始，
+// 右侧列起点 = vw + 3，mip 之间留 2px 间隙。
+const int   ATLAS_MIP0_ORIGIN = 1;
+const int   ATLAS_COLUMN_GAP  = 3;
+const int   ATLAS_MIP_PADDING = 2;
+// 每 mip 取 4 个 1/4 像素偏移做双三次近似。
+const float UPSAMPLE_OFFSET   = 0.25;
+const float DITHER_TILE_SIZE  = 128.0;
 
 void main()
 {
@@ -68,11 +76,11 @@ void main()
     vec2 atlasSize = vec2(textureSize({{RT_BLOOM}}, 0));
     int vw = int(viewWidth);
     int vh = int(viewHeight);
-    int rightColumnX = vw + 3;      // mip1+ 内容区起始 x（mip0 quad 右边界 vw+2 + 1px 死空间）
+    int rightColumnX = vw + ATLAS_COLUMN_GAP;   // mip1+ 内容区起始 x（mip0 quad 右边界 + 1px 死空间）
     int maxMips = findMSB(int(max(viewWidth, viewHeight))) + 1;
 
     // ── 抖动偏移 ─────────────────────────────────────────────
-    vec2 noiseUv = vec2(pixelCoord) / 128.0;
+    vec2 noiseUv = vec2(pixelCoord) / DITHER_TILE_SIZE;
     vec2 ditherPixels = (texture(noisetex, noiseUv).rg - 0.5);
     vec2 ditherUv = ditherPixels / atlasSize;
 
@@ -82,17 +90,17 @@ void main()
     // mip0：内容区 x∈[1, vw+1)，y∈[1, vh+1)
     {
         vec2 mipPos = (vec2(pixelCoord) + 0.5) / vec2(viewWidth, viewHeight) * vec2(float(vw), float(vh));
-        vec2 baseUV = (vec2(1.0, 1.0) + mipPos) / atlasSize;
+        vec2 baseUV = (vec2(float(ATLAS_MIP0_ORIGIN)) + mipPos) / atlasSize;
         vec3 s = vec3(0.0);
-        s += texture({{RT_BLOOM}}, baseUV + vec2(-0.25, -0.25) / atlasSize + ditherUv).rgb;
-        s += texture({{RT_BLOOM}}, baseUV + vec2( 0.25, -0.25) / atlasSize + ditherUv).rgb;
-        s += texture({{RT_BLOOM}}, baseUV + vec2(-0.25,  0.25) / atlasSize + ditherUv).rgb;
-        s += texture({{RT_BLOOM}}, baseUV + vec2( 0.25,  0.25) / atlasSize + ditherUv).rgb;
+        s += texture({{RT_BLOOM}}, baseUV + vec2(-UPSAMPLE_OFFSET, -UPSAMPLE_OFFSET) / atlasSize + ditherUv).rgb;
+        s += texture({{RT_BLOOM}}, baseUV + vec2( UPSAMPLE_OFFSET, -UPSAMPLE_OFFSET) / atlasSize + ditherUv).rgb;
+        s += texture({{RT_BLOOM}}, baseUV + vec2(-UPSAMPLE_OFFSET,  UPSAMPLE_OFFSET) / atlasSize + ditherUv).rgb;
+        s += texture({{RT_BLOOM}}, baseUV + vec2( UPSAMPLE_OFFSET,  UPSAMPLE_OFFSET) / atlasSize + ditherUv).rgb;
         bloomAccum += s * 0.25;
     }
 
     // mip1+：内容区 x∈[rightColumnX, rightColumnX+mw)，y 逐 mip 下移
-    int yOff = 1;
+    int yOff = ATLAS_MIP0_ORIGIN;
     int actualMips = 1; // mip0
     for (int mip = 1; mip < maxMips; mip++)
     {
@@ -104,14 +112,14 @@ void main()
         vec2 baseUV = (vec2(float(rightColumnX), float(yOff)) + mipPos) / atlasSize;
 
         vec3 s = vec3(0.0);
-        s += texture({{RT_BLOOM}}, baseUV + vec2(-0.25, -0.25) / atlasSize + ditherUv).rgb;
-        s += texture({{RT_BLOOM}}, baseUV + vec2( 0.25, -0.25) / atlasSize + ditherUv).rgb;
-        s += texture({{RT_BLOOM}}, baseUV + vec2(-0.25,  0.25) / atlasSize + ditherUv).rgb;
-        s += texture({{RT_BLOOM}}, baseUV + vec2( 0.25,  0.25) / atlasSize + ditherUv).rgb;
+        s += texture({{RT_BLOOM}}, baseUV + vec2(-UPSAMPLE_OFFSET, -UPSAMPLE_OFFSET) / atlasSize + ditherUv).rgb;
+        s += texture({{RT_BLOOM}}, baseUV + vec2( UPSAMPLE_OFFSET, -UPSAMPLE_OFFSET) / atlasSize + ditherUv).rgb;
+        s += texture({{RT_BLOOM}}, baseUV + vec2(-UPSAMPLE_OFFSET,  UPSAMPLE_OFFSET) / atlasSize + ditherUv).rgb;
+        s += texture({{RT_BLOOM}}, baseUV + vec2( UPSAMPLE_OFFSET,  UPSAMPLE_OFFSET) / atlasSize + ditherUv).rgb;
         bloomAccum += s * 0.25;
         actualMips++;
 
-        yOff += mh + 2;
+        yOff += mh + ATLAS_MIP_PADDING;
     }
 
     // ── 归一化并应用 bloom 强度 ──────────────────────────────

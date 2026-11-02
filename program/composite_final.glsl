@@ -1,20 +1,8 @@
 // {{SHADER_FRAG}}
 #ifdef {{SHADER_FRAG}}
-#include "/lib/common.glsl"
-#include "/lib/options.glsl"
-#include "/lib/tonemap.glsl"
+#include "/lib/prelude.glsl"
 
 uniform sampler2D {{RT_BACK}};
-//uniform sampler2D {{RT_SKY_TEST}};
-uniform sampler2D {{RT_BLOOM}};
-//uniform sampler2D {{IMG_SKYVIEW}};
-//uniform sampler2D {{IMG_BLOOM_SAMPLER}};$
-//uniform sampler2D {{IMG_SKYENV_SAMPLER}};
-uniform sampler2D colortex15;
-uniform sampler2D starcoltex;
-uniform sampler2D stardirtex;
-
-uniform sampler2D vignettetex;
 
 #ifdef DEBUG_VIEW
 uniform sampler2D {{RT_BASE_COLOR}};
@@ -26,19 +14,12 @@ in vec2 texcoord;
 
 layout(location = 0) out vec4 color;
 
-// LOCAL SETTINGS
+// Radial vignette: fully clear inside VIGNETTE_START, fully dark at VIGNETTE_END
+// (distance is measured in screen UV units from the centre).
+const float VIGNETTE_START = 0.3;
+const float VIGNETTE_END   = 1.7;
 
-
-vec3 aces1(vec3 x)
-{
-    const float a = 2.6;
-    const float b = 0.7;
-    const float c = 2.62;
-    const float d = 0.4;
-    const float e = 1.2;
-    return (x * (a * x + b)) / (x * (c * x + d) + e);
-}
-
+// ACES filmic approximation (Narkowicz fit).
 vec3 aces(vec3 x)
 {
     const float a = 2.51;
@@ -52,39 +33,22 @@ vec3 aces(vec3 x)
 void main()
 {
     ivec2 pixelCoordinate = ivec2(gl_FragCoord.xy);
-    //ivec2 pixelCoord = ivec2(gl_FragCoord.xy);$
-    //float value = texelFetch({{IMG_LIGHTING_LUT_SAMPLER}}, ivec2({{POS_LIGHTING_LUT_VALUE}}), 0).r;
-    //color.rgb = pow(aces(texelFetch({{RT_BACK}}, pixelCoordinate, 0).rgb / mix(value, 1.0, 0.03) / 2.0), vec3(1.0/2.2));
-    color.rgb = texelFetch({{RT_BACK}}, pixelCoordinate, 0).rgb;
 
-    //color.rgb = pow(whyWhatTonemap(color.rgb), vec3(1.0 / GAMMA));
-    //color.rgb = pow(aces1(color.rgb), vec3(1.0 / GAMMA));
-    color.rgb = pow(aces(color.rgb * 0.7), vec3(1.0 / GAMMA));
-    //color.rgb = pow(gt7ToneMap(color.rgb, 0.0, 0.0, false), vec3(1.0 / GAMMA));
-    //color.rgb = pow(color.rgb, vec3(1.0 / GAMMA));
+    // Scene gain before the tonemap curve; purely empirical.
+    const float PRE_TONEMAP_GAIN = 0.7;
 
-    float vignetteMask = 1.0 - smoothstep(0.3, 1.7, distance(texcoord, vec2(0.5, 0.5))) * 0.5;
+    vec3 sceneColor = texelFetch({{RT_BACK}}, pixelCoordinate, 0).rgb;
+    color.rgb = pow(aces(sceneColor * PRE_TONEMAP_GAIN), vec3(1.0 / GAMMA));
+
+    float vignetteMask = 1.0 - smoothstep(VIGNETTE_START, VIGNETTE_END, distance(texcoord, vec2(0.5, 0.5))) * VIGNETTE_AMOUNT;
     color.rgb *= vignetteMask * vignetteMask;
-
-    //color.rgb = rdr2Tonemap(texelFetch({{RT_BACK}}, pixelCoordinate, 0).rgb*1.5);
-    //color.rgb = pow(gt7ToneMap(texelFetch({{RT_BACK}}, pixelCoordinate, 0).rgb, 0, 0, false), vec3(1.0/2.2));
-    //color.rgb = texture({{RT_BACK}}, texcoord).rgb;
-    #if defined VIGNETTE_AMOUNT && VIGNETTE_AMOUNT != 0.0
-    //float vignetteMask = texture(vignettetex, texcoord).r * VIGNETTE_AMOUNT + (1.0 - VIGNETTE_AMOUNT);
-    //color.rgb *= vignetteMask * vignetteMask;
-    #endif
-
-    //color.rgb = texelFetch(stardirtex, pixelCoordinate, 0).rgb;
-    //color.rgb = color.rgb + texelFetch({{RT_BLOOM}}, pixelCoordinate, 0).rgb;
-    //color.rgb = color.rgb + texelFetch({{IMG_BLOOM_SAMPLER}}, pixelCoordinate, 0).rgb;$
 
     #ifdef DEBUG_VIEW
     vec2 viewCoordinate = fract(texcoord * 2.0);
-    //vec2 viewCoord = fract(texcoord * 2.0);$
 
     if (texcoord.x < 0.5 && texcoord.y >= 0.5)
     {
-        color.rgb = pow(aces(texture({{RT_BACK}}, viewCoordinate).rgb), vec3(1.0/2.2));
+        color.rgb = pow(aces(texture({{RT_BACK}}, viewCoordinate).rgb), vec3(1.0 / GAMMA));
     }
     else if (texcoord.x >= 0.5 && texcoord.y >= 0.5)
     {
@@ -99,34 +63,14 @@ void main()
         color.rgb = texture({{RT_LIGHTING0}}, viewCoordinate).rgb;
     }
 
-    color.a = 1.0;
-
-    vec2 localCoordinate = fract(texcoord * 2.0);
-    //vec2 localCoord = fract(texcoord * 2.0);$
-    vec2 diff = (localCoordinate - 0.5);
-
-    float distanceValue = length(diff);
-    float dotSize = 0.001;
-    float dotMask = 1.0 - smoothstep(dotSize, dotSize + 0.001, distanceValue);
-    //float dot = 1.0 - smoothstep(dotSize, dotSize + 0.001, dist);$
-    color.rgb = mix(color.rgb, vec4(1.0, 1.0, 1.0, 1.0).rgb, dotMask);
+    // Dot in each quadrant centre so the split is easy to read.
+    const float DOT_SIZE = 0.001;
+    vec2 localCoordinate = fract(texcoord * 2.0) - 0.5;
+    float dotMask = 1.0 - smoothstep(DOT_SIZE, DOT_SIZE + 0.001, length(localCoordinate));
+    color.rgb = mix(color.rgb, vec3(1.0), dotMask);
     #endif
 
-    // Bloom atlas visualization — scaled to bottom half of screen.
-    // Atlas: 2× viewWidth wide, viewHeight tall, mips laid out horizontally.
-    //if (texcoord.y < 0.5)
-    //{
-    //    // Scale atlas down: atlas is 2× screen width, so map x∈[0,2] → [0,1]
-    //    vec2 atlasUV = vec2(texcoord.x * 2.0, texcoord.y * 2.0);
-    //    vec3 bloom = texture({{RT_BLOOM}}, atlasUV).rgb;
-    //    //vec3 bloom = texture({{IMG_BLOOM_SAMPLER}}, atlasUV).rgb;$
-    //    // Boost for visibility
-    //    color.rgb = bloom * 5.0;
-    //}
-    vec3 bloom = texture({{RT_BLOOM}}, texcoord).rgb;
-    //vec3 bloom = texture({{IMG_BLOOM_SAMPLER}}, texcoord).rgb;$
-    //color.rgb = bloom * 5.0;
-    //#endif
+    color.a = 1.0;
 }
 #endif
 

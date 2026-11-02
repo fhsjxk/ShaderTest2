@@ -1,20 +1,11 @@
 // {{SHADER_FRAG}}
 #ifdef {{SHADER_FRAG}}
-#include "/lib/common.glsl"
-#include "/lib/math.glsl"
-#include "/lib/options.glsl"
+#include "/lib/prelude.glsl"
 
 uniform sampler2D gtexture;
 
-#ifdef MC_TEXTURE_FORMAT_LAB_PBR
-uniform sampler2D specular;
-#ifdef NORMALMAP
-uniform sampler2D normals;
-#endif
-#endif
-
 #ifdef GBUFFER_ENTITIES
-    uniform vec4 entityColor;
+uniform vec4 entityColor;
 #endif
 
 in vec2 texcoord;
@@ -23,18 +14,11 @@ in vec3 normal;
 in vec4 lighting;
 in float sunLighting;
 
-#ifdef MC_TEXTURE_FORMAT_LAB_PBR
-/* RENDERTARGETS: {RT_BASE_COLOR},{RT_NORMAL},{RT_LIGHTING0},{RT_SPECULAR} */
-#else
 /* RENDERTARGETS: {RT_BASE_COLOR},{RT_NORMAL},{RT_LIGHTING0} */
-#endif
 
 layout(location = 0) out vec4 outBaseColor;
 layout(location = 1) out vec4 outNormal;
 layout(location = 2) out vec4 outLighting0;
-#ifdef MC_TEXTURE_FORMAT_LAB_PBR
-layout(location = 3) out vec4 outSpecular;
-#endif
 
 void main()
 {
@@ -43,23 +27,19 @@ void main()
     #endif
 
     vec4 baseColor = texture(gtexture, texcoord);
-    
-    if (baseColor.a < 0.52)
+
+    if (baseColor.a < ALPHA_TEST_THRESHOLD)
     {
         discard;
     }
 
     baseColor = baseColor * vec4(color, 1.0);
 
-    #ifdef MC_TEXTURE_FORMAT_LAB_PBR
-    #ifdef NORMALMAP
-    #endif
-    #endif
-
     #ifdef GBUFFER_ENTITIES
         baseColor.rgb = mix(baseColor.rgb, entityColor.rgb, entityColor.a);
     #endif
 
+    // Vanilla textures are authored in sRGB; the lighting model works in linear.
     baseColor.rgb = pow(baseColor.rgb, vec3(2.2));
 
     outBaseColor = baseColor;
@@ -71,8 +51,7 @@ void main()
 
 // {{SHADER_VERT}}
 #ifdef {{SHADER_VERT}}
-#include "/lib/common.glsl"
-#include "/lib/math.glsl"
+#include "/lib/prelude.glsl"
 
 uniform mat4 gbufferModelViewInverse;
 
