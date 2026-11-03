@@ -17,13 +17,13 @@
 
 float distanceToTopAtmosphereBoundary(float r, float mu)
 {
-    float discriminant = r * r * (mu * mu - 1.0) + ATMOSPHERE_RADIUS * ATMOSPHERE_RADIUS;
+    float discriminant = r * r * (mu * mu - 1.0) + ATMOSPHERE_RADIUS_KM * ATMOSPHERE_RADIUS_KM;
     return clamp(-r * mu + sqrt(max(0.0, discriminant)), 0.0, 1e6);
 }
 
 bool rayIntersectsGround(float r, float mu)
 {
-    return mu < 0.0 && r * r * (mu * mu - 1.0) + PLANET_RADIUS * PLANET_RADIUS >= 0.0;
+    return mu < 0.0 && r * r * (mu * mu - 1.0) + PLANET_RADIUS_KM * PLANET_RADIUS_KM >= 0.0;
 }
 
 // Returns the nearest positive intersection distance, or -1.0 when the ray misses.

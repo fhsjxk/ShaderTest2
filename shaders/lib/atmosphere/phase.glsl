@@ -1,11 +1,7 @@
 // Scattering phase functions
 //
-// Atmosphere model split by responsibility. Dependencies are one-way:
-//   constants -> {geometry, phase, medium} -> transmittance -> scattering
-// `scene` and `skyview` only depend on constants.
-//
-// Units: distances km, coefficients 1/km, radiance scene-linear unitless.
-// See constants.glsl for the provenance of every physical number.
+// All three are normalised to integrate to 1 over the sphere, so a phase value
+// times an irradiance gives a radiance without any extra gain factor.
 
 #ifndef ATMOSPHERE_PHASE
 #define ATMOSPHERE_PHASE
@@ -13,9 +9,7 @@
 #include "/lib/prelude.glsl"
 #include "/lib/atmosphere/constants.glsl"
 
-// ═══ Phase functions ════════════════════════════════════════
-
-// Henyey-Greenstein, normalised over the sphere. g > 0 is forward scattering.
+// Henyey-Greenstein. g > 0 scatters forward, g = 0 is isotropic.
 float hgPhase(float cosTheta, float g)
 {
     float g2 = g * g;
@@ -23,40 +17,29 @@ float hgPhase(float cosTheta, float g)
     return INV_4PI * (1.0 - g2) / (denom * sqrt(denom));
 }
 
-// Haze phase: four HG lobes weighted so the result stays energy normalised
-// (weights sum to 1), then gained by ATMOSPHERE_HAZE_GAIN. The multi-lobe shape
-// reproduces the wide aerosol forward peak plus the soft back-scatter of the
-// reference tuning; a single lobe cannot fit both ends of the curve.
-const float HAZE_G0 = 0.62;
-const float HAZE_G1 = 0.82;
-const float HAZE_G2 = 0.93;
-const float HAZE_G3 = 0.97;
+// Aerosol phase: four HG lobes mixed into a wide forward peak plus a soft back
+// lobe. Measured aerosol phase functions need several lobes to fit both ends of
+// the curve, and this hand-tuned mix is what the RGB look was calibrated with.
+//
+// AEROSOL_PHASE_GAIN is a look-tuning multiplier, not a physical quantity: the
+// nested mix keeps the weights normalised, so the gain lifts the horizon glow
+// without changing the shape. It exists only because the RGB tuning depends on it.
+const float AEROSOL_PHASE_GAIN = 1.3;
 
-const float HAZE_W0 = 0.650;
-const float HAZE_W1 = 0.210;
-const float HAZE_W2 = 0.112;
-const float HAZE_W3 = 0.028;
-
-float hazePhase(float cosTheta)
+float aerosolPhase(float cosTheta)
 {
-    float lobe = HAZE_W0 * hgPhase(cosTheta, HAZE_G0)
-               + HAZE_W1 * hgPhase(cosTheta, HAZE_G1)
-               + HAZE_W2 * hgPhase(cosTheta, HAZE_G2)
-               + HAZE_W3 * hgPhase(cosTheta, HAZE_G3);
-    return lobe * ATMOSPHERE_HAZE_GAIN;
+    return mix(hgPhase(cosTheta, 0.62),
+               mix(hgPhase(cosTheta, 0.82),
+                   mix(hgPhase(cosTheta, 0.93),
+                       hgPhase(cosTheta, 0.97), 0.2), 0.4), 0.35)
+           * AEROSOL_PHASE_GAIN;
 }
 
-// Rayleigh phase biased towards the anti-solar side so the horizon does not
-// wash out. The first term is a hand-shaped lobe, the second the analytic
-// Rayleigh phase; RAYLEIGH_ANALYTIC_MIX is the visual blend between them and is
-// not an energy-conserving parameter.
-const float RAYLEIGH_ANALYTIC_MIX = 0.8;
-
+// Rayleigh phase for unpolarised light. The (1 + cos^2) term is the analytic
+// form; the depolarisation correction is ~3% and is omitted.
 float rayleighPhase(float cosTheta)
 {
-    float shaped   = (1.0 / PI / 4.0) * 0.4 * -cosTheta + (1.0 / PI / 4.0) * 1.12;
-    float analytic = (3.0 / (16.0 * PI)) * (1.0 + cosTheta * cosTheta);
-    return mix(shaped, analytic, RAYLEIGH_ANALYTIC_MIX);
+    return (3.0 / (16.0 * PI)) * (1.0 + cosTheta * cosTheta);
 }
 
 #endif

@@ -56,12 +56,16 @@ RT_LIST = [
     RT("RT_SPECULAR",      "RGBA8"),
     RT("RT_LIGHTMAP",      "RGBA16F"),
     RT("RT_VERTEX_LIGHT",  "RGBA8"),
+    # Scene radiance in colour units. 16F suffices because the solar disc is
+    # written at SUN_DISC_RENDER_SCALE of its physical radiance (3.1e4 units).
     RT("RT_HDR",           "RGBA16F"),
     # Luminance buffer for auto exposure (log-average + centre weighting).
     RT("RT_LUM",           "RG16F",   size="0.03125 0.03125"),
 ]
 
-# Bloom pyramid: one buffer per level, 1/2 down to 1/2^BLOOM_LEVELS.
+# Bloom pyramid: one buffer per level, 1/2 down to 1/2^BLOOM_LEVELS. Values are
+# display-referred (already multiplied by the exposure) and capped at
+# BLOOM_SOURCE_CEILING, so a half float holds them.
 for _level in range(1, BLOOM_LEVELS + 1):
     _scale = 0.5 ** _level
     RT_LIST.append(RT(f"RT_BLOOM{_level}", "RGBA16F",
@@ -81,6 +85,7 @@ class IMG:
 
 IMG_LIST = [
     IMG("IMG_TRANSMIT_LUT", image="RGBA16F", relative=False, size="256 64"),
+    # Sky-view LUT holds radiance in colour units plus the scaled solar disc.
     IMG("IMG_SKYVIEW",      image="RGBA16F", relative=False, size="512 256"),
     IMG("IMG_SKY",          image="RGBA16F", relative=True,  size="0.125 0.125"),
 ]

@@ -14,7 +14,7 @@ void main()
 {
     ivec2 lumSize = textureSize({{RT_LUM}}, 0);
 
-    // Weighted mean of the per-block encoded luma. The luminance buffer is tiny
+    // Weighted mean of the per-block log2(luma). The luminance buffer is tiny
     // (1/32 of the screen), so a single invocation can reduce it directly.
     float weightedSum = 0.0;
     float weightSum = 0.0;
@@ -28,16 +28,20 @@ void main()
         }
     }
 
-    float encodedAverage = weightedSum / max(weightSum, EXPOSURE_EPS);
-    float averageLuma = EXPOSURE_USE_LOG != 0
-                      ? exp2(encodedAverage)
-                      : encodedAverage * encodedAverage;
+    // Undo the log encoding: the weighted mean of log2(luma) is the geometric
+    // mean of luma.
+    float averageLuma = exp2(weightedSum / max(weightSum, EPS));
 
-    float target = EXPOSURE_KEY / max(pow(averageLuma, EXPOSURE_CURVE), EXPOSURE_EPS);
+    // exposure = TARGET * (REFERENCE_LUMA / averageLuma)^STRENGTH, so the
+    // reference scene receives exactly TARGET and every other scene is pulled
+    // towards it by STRENGTH.
+    float strength = clamp(EXPOSURE_ADAPT_STRENGTH, 0.0, 1.0);
+    float target = EXPOSURE_TARGET
+                 * pow(EXPOSURE_REFERENCE_LUMA / max(averageLuma, EPS), strength);
     target = clamp(target, EXPOSURE_MIN, EXPOSURE_MAX);
 
-    // Frame-rate independent temporal adaptation.
-    float blend = 1.0 - exp(-frameTime * EXPOSURE_ADAPT_SPEED);
+    // Frame-rate independent adaptation; EXPOSURE_ADAPT_RATE is 1/time-constant.
+    float blend = 1.0 - exp(-frameTime * EXPOSURE_ADAPT_RATE);
     exposureBlock.exposure = mix(exposureBlock.exposure, target, blend);
 }
 #endif

@@ -4,3 +4,5 @@ IrisShaders/
 refs/
 __pycache__/
 *.pyc
+*.md
+docs/

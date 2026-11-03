@@ -2,6 +2,7 @@
 #ifdef {{SHADER_COMP}}
 #include "/lib/prelude.glsl"
 #include "/lib/utility/color.glsl"
+#include "/lib/universal/buffers.glsl"
 #include "/lib/lighting/tuning.glsl"
 
 // 13-tap downsample (COD:AW kernel). Level 0 reads the scene and applies the
@@ -52,6 +53,13 @@ vec3 sampleSource(vec2 uv)
     return texture(SRC_TEX, uv).rgb;
 }
 
+// Upper bound on what enters the pyramid, in display-referred units. The chain
+// stores half floats, so an unbounded source would overflow to inf and the blur
+// taps would smear it across the whole screen. 4096 is ~4000x display white, far
+// past any visible difference after tonemapping, and 8 levels of accumulation
+// still fit in 65504.
+const float BLOOM_SOURCE_CEILING = 4096.0;
+
 // Group weights sum to 1: centre 1/8, axis neighbours 1/16, corners 1/32.
 vec3 downsample13(vec2 uv, vec2 texel)
 {
@@ -76,7 +84,9 @@ vec3 downsample13(vec2 uv, vec2 texel)
     return result;
 }
 
-// Bright-pass prefilter.
+// Bright-pass prefilter, evaluated in display-referred units (the caller has
+// already applied the exposure), so 1.0 is display white and the threshold means
+// the same thing regardless of scene brightness or the chosen unit scale.
 //
 // Each pixel contributes with a weight in [0, 1]:
 //   brightness >= BLOOM_THRESHOLD                       -> 1, fully included
@@ -89,15 +99,15 @@ vec3 bloomPrefilter(vec3 color)
 {
     float brightness = getBrightness(color);
 
-    float threshold   = max(BLOOM_THRESHOLD, 1e-4);
+    float threshold   = max(BLOOM_THRESHOLD, EPS);
     float smoothRatio = clamp(BLOOM_THRESHOLD_SMOOTH, 0.0, 1.0);
 
     // Lower edge of the ramp, as a fraction of the threshold so the softness
-    // scales with it. The -1e-4 keeps smoothstep defined when the ratio is 0
+    // scales with it. The -EPS keeps smoothstep defined when the ratio is 0
     // without moving where the threshold itself takes effect.
-    float lowerBound = min(threshold * (1.0 - smoothRatio), threshold - 1e-4);
+    float lowerBound = min(threshold * (1.0 - smoothRatio), threshold - EPS);
 
-    float weight = smoothstep(lowerBound, threshold, brightness);
+    float weight = mix(smoothstep(lowerBound, threshold, brightness), 1.0, BLOOM_MIN_STRENGTH);
 
     return color * weight;
 }
@@ -117,6 +127,11 @@ void main()
     vec3 color = downsample13(uv, texel);
 
     #if BLOOM_LEVEL == 0
+    // Bloom is a sensor effect, so the chain works in display-referred space:
+    // scale the scene radiance by the exposure first, then threshold at 1.0,
+    // which is display white. The ceiling is applied after the exposure so a
+    // high exposure on a bright highlight cannot overflow the half floats.
+    color = min(color * exposureBlock.exposure, vec3(BLOOM_SOURCE_CEILING));
     color = bloomPrefilter(color);
     #endif
 

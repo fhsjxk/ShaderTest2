@@ -1,11 +1,7 @@
-// Multiple scattering approximation and the inscattering integral
+// Multiple scattering and the inscattering integral
 //
-// Atmosphere model split by responsibility. Dependencies are one-way:
-//   constants -> {geometry, phase, medium} -> transmittance -> scattering
-// `scene` and `skyview` only depend on constants.
-//
-// Units: distances km, coefficients 1/km, radiance scene-linear unitless.
-// See constants.glsl for the provenance of every physical number.
+// Depends on geometry, phase, medium and transmittance. The result is radiance
+// in colour units (see lib/utility/units.glsl).
 
 #ifndef ATMOSPHERE_SCATTERING
 #define ATMOSPHERE_SCATTERING
@@ -17,56 +13,56 @@
 #include "/lib/atmosphere/medium.glsl"
 #include "/lib/atmosphere/transmittance.glsl"
 
-// ═══ Multiple scattering ════════════════════════════════════
-
-// Cheap approximation: ground bounce through the transmittance LUT plus an
-// isotropic term that brightens with solar elevation.
-const float MULTI_SCATTER_SCALE   = 0.01;
-const float MULTI_SCATTER_ROLLOFF = 5.0;
-const float MULTI_SCATTER_DECAY   = 17.92;
-
-#ifdef ENABLE_SPECTRAL
-const vec4 MULTI_SCATTER_TINT = vec4(0.217, 0.347, 0.594, 1.0);
-#else
-const vec3 MULTI_SCATTER_TINT = vec3(0.2, 0.35, 1.0);
-#endif
+// ── Multiple scattering ─────────────────────────────────────
+// Cheap two-term approximation, no extra integration:
+//   1. light reflected once by the ground, attenuated on both legs;
+//   2. a single analytic lobe standing in for everything above first order,
+//      tinted like Rayleigh-scattered light and peaking towards the sun.
+// The caller scales the result by the local scattering coefficient, so what is
+// returned here is an angular distribution, not radiance.
 
 vec34 multiScattering(sampler2D transmitLUT, float cosTheta, float normalizedAlt, float r)
 {
     #ifndef MULTISCATTERING
     return vec34(0.0);
     #else
-    float solidAngle = 2.0 * PI * (1.0 - sqrt(max(0.0, r * r - PLANET_RADIUS * PLANET_RADIUS)) / r);
-    vec34 transToGround = transmittanceFromLUT(transmitLUT, PLANET_RADIUS, cosTheta);
-    vec34 transGroundToSample = transmittanceFromLUT(transmitLUT, PLANET_RADIUS, 1.0)
-                              / transmittanceFromLUT(transmitLUT, PLANET_RADIUS + normalizedAlt * ATMOSPHERE_THICKNESS, 1.0);
+    // Solid angle of the ground disc seen from the sample: the cap of
+    // half-angle asin(R/r), i.e. 2*pi*(1 - cos(halfAngle)) = 2*pi*(1 - sqrt(r²-R²)/r).
+    float groundSolidAngle = 2.0 * PI * (1.0 - sqrt(max(0.0, r * r - PLANET_RADIUS_KM * PLANET_RADIUS_KM)) / r);
 
-    vec34 groundRadiance = (INV_4PI * solidAngle) *
-                           (GROUND_ALBEDO / PI) *
-                           transToGround * transGroundToSample *
-                           max(0.0, cosTheta);
+    vec34 transToGround = transmittanceFromLUT(transmitLUT, PLANET_RADIUS_KM, cosTheta);
+    vec34 transGroundToSample = transmittanceFromLUT(transmitLUT, PLANET_RADIUS_KM, 1.0)
+                              / transmittanceFromLUT(transmitLUT,
+                                                     PLANET_RADIUS_KM + normalizedAlt * ATMOSPHERE_THICKNESS_KM, 1.0);
 
-    vec34 approxMulti = MULTI_SCATTER_SCALE * MULTI_SCATTER_TINT
-                      / (1.0 + MULTI_SCATTER_ROLLOFF * exp(-MULTI_SCATTER_DECAY * cosTheta));
+    // Ground bounce: a Lambertian disc of reflectance GROUND_ALBEDO lit by the sun.
+    vec34 groundRadiance = (INV_4PI * groundSolidAngle)
+                         * (GROUND_ALBEDO / PI)
+                         * transToGround * transGroundToSample
+                         * max(0.0, cosTheta);
+
+    // Higher orders as one lobe: 1/6 of the peak at 90 deg to the sun, rising
+    // towards it. The 0.01 sets the overall share of the light that comes back.
+    vec34 approxMulti = 0.01 * RAYLEIGH_MULTISCATTER_TINT / (1.0 + 5.0 * exp(-17.92 * cosTheta));
 
     return groundRadiance + approxMulti;
     #endif
 }
 
-// ═══ Inscattering ═══════════════════════════════════════════
+// ── Inscattering ────────────────────────────────────────────
 
 vec34 computeInscattering(sampler2D transmitLUT, vec3 sunDirection, vec3 rayDirection, float altitude)
 {
-    vec3 rayOrigin = vec3(0.0, PLANET_RADIUS + altitude, 0.0);
+    vec3 rayOrigin = vec3(0.0, PLANET_RADIUS_KM + altitude, 0.0);
     vec3 sunDirN = normalize(sunDirection);
 
     float cosTheta = dot(rayDirection, sunDirN);
 
-    float atmosphereDist = raySphereIntersect(rayOrigin, rayDirection, ATMOSPHERE_RADIUS);
-    float groundDist = raySphereIntersect(rayOrigin, rayDirection, PLANET_RADIUS);
+    float atmosphereDist = raySphereIntersect(rayOrigin, rayDirection, ATMOSPHERE_RADIUS_KM);
+    float groundDist = raySphereIntersect(rayOrigin, rayDirection, PLANET_RADIUS_KM);
 
     float rayLength = 0.0;
-    bool inside = (length(rayOrigin) <= ATMOSPHERE_RADIUS);
+    bool inside = (length(rayOrigin) <= ATMOSPHERE_RADIUS_KM);
 
     if (inside)
     {
@@ -75,7 +71,7 @@ vec34 computeInscattering(sampler2D transmitLUT, vec3 sunDirection, vec3 rayDire
     else if (atmosphereDist > 0.0)
     {
         rayOrigin += rayDirection * (atmosphereDist + 1e-4);
-        float secondDist = raySphereIntersect(rayOrigin, rayDirection, ATMOSPHERE_RADIUS);
+        float secondDist = raySphereIntersect(rayOrigin, rayDirection, ATMOSPHERE_RADIUS_KM);
         rayLength = (groundDist > 0.0) ? (groundDist - atmosphereDist) : secondDist;
     }
 
@@ -86,8 +82,10 @@ vec34 computeInscattering(sampler2D transmitLUT, vec3 sunDirection, vec3 rayDire
     vec34 L = vec34(0.0);
     vec34 T = vec34(1.0);
 
+    // The phase functions are evaluated for the angle between the view ray and
+    // the direction back to the sun, which is -cosTheta by construction here.
     float rayleighPhaseVal = rayleighPhase(-cosTheta);
-    float hazePhaseVal     = hazePhase(-cosTheta);
+    float aerosolPhaseVal  = aerosolPhase(-cosTheta);
 
     for (int i = 0; i < INSCATTERING_STEPS; ++i)
     {
@@ -95,8 +93,8 @@ vec34 computeInscattering(sampler2D transmitLUT, vec3 sunDirection, vec3 rayDire
         vec3 p = rayOrigin + rayDirection * t;
 
         float r = length(p);
-        float h = r - PLANET_RADIUS;
-        float normalizedH = h / ATMOSPHERE_THICKNESS;
+        float h = r - PLANET_RADIUS_KM;
+        float normalizedH = h / ATMOSPHERE_THICKNESS_KM;
 
         float sunCosTheta = dot(p / r, sunDirN);
 
@@ -107,15 +105,18 @@ vec34 computeInscattering(sampler2D transmitLUT, vec3 sunDirection, vec3 rayDire
         vec34 transToSun = transmittanceFromLUT(transmitLUT, r, sunCosTheta);
 
         vec34 singleScatter = (molecularScattering * rayleighPhaseVal
-                             + aerosolScattering * hazePhaseVal) * transToSun;
-        vec34 multiScatter  = multiScattering(transmitLUT, sunCosTheta, normalizedH, r)
-                            * (molecularScattering + aerosolScattering);
+                             + aerosolScattering * aerosolPhaseVal) * transToSun;
 
-        vec34 source = SUN_RADIANCE * (singleScatter + multiScatter);
+        vec34 multiScatter = multiScattering(transmitLUT, sunCosTheta, normalizedH, r)
+                           * (molecularScattering + aerosolScattering);
+
+        // Irradiance times scattering coefficient times phase gives radiance per
+        // unit length; the loop integrates over length.
+        vec34 source = SUN_IRRADIANCE * (singleScatter + multiScatter);
 
         // Analytic integration of a constant source over the step.
         vec34 stepT = exp(-ext * dt);
-        vec34 integrated = (source - source * stepT) / max(ext, vec34(1e-6));
+        vec34 integrated = (source - source * stepT) / max(ext, vec34(EPS));
 
         L += T * integrated;
         T *= stepT;

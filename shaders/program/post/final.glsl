@@ -20,9 +20,6 @@ layout(location = 0) out vec4 color;
 const float VIGNETTE_START = 0.3;
 const float VIGNETTE_END   = 1.7;
 
-// Scene gain applied after bloom and exposure, before the tonemap curve.
-const float PRE_TONEMAP_GAIN = 0.7;
-
 // ACES filmic approximation (Narkowicz fit).
 vec3 aces(vec3 x)
 {
@@ -38,9 +35,11 @@ void main()
 {
     ivec2 pixelCoordinate = ivec2(gl_FragCoord.xy);
 
-    vec3 hdr = texelFetch({{RT_HDR}}, pixelCoordinate, 0).rgb;
+    // Scene radiance in colour units, converted to display-referred space by the
+    // auto-exposure. Bloom is already in that space and was accumulated from the
+    // same exposure, so it is added rather than scaled again.
+    vec3 hdr = texelFetch({{RT_HDR}}, pixelCoordinate, 0).rgb * exposureBlock.exposure;
     hdr += texture({{RT_BLOOM1}}, texcoord).rgb * BLOOM_STRENGTH;
-    hdr *= exposureBlock.exposure * PRE_TONEMAP_GAIN;
 
     color.rgb = pow(aces(hdr), vec3(1.0 / GAMMA));
 
@@ -52,7 +51,7 @@ void main()
 
     if (texcoord.x < 0.5 && texcoord.y >= 0.5)
     {
-        color.rgb = pow(aces(texelFetch({{RT_HDR}}, ivec2(texcoord * vec2(textureSize({{RT_HDR}}, 0))), 0).rgb), vec3(1.0 / GAMMA));
+        color.rgb = pow(aces(texelFetch({{RT_HDR}}, ivec2(texcoord * vec2(textureSize({{RT_HDR}}, 0))), 0).rgb * exposureBlock.exposure), vec3(1.0 / GAMMA));
     }
     else if (texcoord.x >= 0.5 && texcoord.y >= 0.5)
     {

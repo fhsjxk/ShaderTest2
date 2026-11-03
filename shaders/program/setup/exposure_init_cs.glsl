@@ -9,6 +9,8 @@ const ivec3 workGroups = ivec3(1, 1, 1);
 
 void main()
 {
-    exposureBlock.exposure = EXPOSURE_INITIAL;
+    // Seed with EXPOSURE_TARGET: that is the steady state for the reference
+    // scene, so a frame matching the calibration starts exactly on target.
+    exposureBlock.exposure = EXPOSURE_TARGET;
 }
 #endif

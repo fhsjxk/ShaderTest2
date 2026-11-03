@@ -5,10 +5,12 @@
 // to get configuration, math constants and the render-target format block.
 //   settings.glsl   Iris built-in constants
 //   options.glsl    user-facing switches and tunables
-//   math.glsl       PI / INV_PI / INV_4PI / saturate
+//   units.glsl      NITS_PER_UNIT and the unit conversions
+//   math.glsl       PI / INV_PI / INV_4PI / EPS / saturate
 //   rt_formats.glsl generated colortex format declarations
 #include "/settings.glsl"
 #include "/options.glsl"
+#include "/lib/utility/units.glsl"
 #include "/lib/utility/math.glsl"
 #include "/lib/rt_formats.glsl"
 

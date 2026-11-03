@@ -35,7 +35,7 @@ void main()
 
     vec3 skyRefl = sampleSkyViewLUT({{IMG_SKYVIEW_SAMPLER}}, R, MIN_ALTITUDE_KM);
 
-    float fresnel = fresnelSchlickF0(NdotV, WATER_F0);
+    float fresnel = fresnelSchlick(NdotV, WATER_F0);
 
     outColor = vec4(mix(back, skyRefl, fresnel), 1.0);
 }

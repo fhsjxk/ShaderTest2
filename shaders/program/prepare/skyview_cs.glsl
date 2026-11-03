@@ -44,12 +44,12 @@ void main()
     vec3 color = inscatter.rgb;
     #endif
 
-    vec34 trans = transmittanceFromLUT({{IMG_TRANSMIT_LUT_SAMPLER}}, PLANET_RADIUS + MIN_ALTITUDE_KM, clamp(rayDir.y, -1.0, 1.0));
+    vec34 trans = transmittanceFromLUT({{IMG_TRANSMIT_LUT_SAMPLER}}, PLANET_RADIUS_KM + MIN_ALTITUDE_KM, clamp(rayDir.y, -1.0, 1.0));
     #ifdef ENABLE_SPECTRAL
     trans.rgb = rgbFromSpectral(trans) * 0.2;
     #endif
 
-    color += sunDiscMask(dot(rayDir, normalize(sunDirection))) * SUN_DISC_RADIANCE * trans.rgb;
+    color += sunDiscMask(dot(rayDir, normalize(sunDirection))) * SUN_DISC_RENDER_RADIANCE * trans.rgb;
 
     imageStore({{IMG_SKYVIEW}}, pixelCoordinate, vec4(color, 1.0));
 }

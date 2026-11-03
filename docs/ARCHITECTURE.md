@@ -66,7 +66,7 @@ G-buffer 写入布局：`RENDERTARGETS = RT_ALBEDO, RT_NORMAL, RT_LIGHTMAP`。
 | 名称 | 格式 | 尺寸 | 用途 |
 |---|---|---|---|
 | `IMG_TRANSMIT_LUT` | RGBA16F | 256×64 | 大气 transmittance LUT |
-| `IMG_SKYVIEW` | RGBA16F | 512×256 | sky-view LUT（360°×仰角） |
+| `IMG_SKYVIEW` | RGBA16F | 512×256 | sky-view LUT（360°×仰角，含按 `SUN_DISC_RENDER_SCALE` 缩放后的太阳盘） |
 | `IMG_SKY` | RGBA16F | 1/8 屏幕 | 天空 inscattering（tile 剔除后） |
 
 ### 2.3 SSBO
@@ -88,7 +88,7 @@ G-buffer 写入布局：`RENDERTARGETS = RT_ALBEDO, RT_NORMAL, RT_LIGHTMAP`。
 | `deferred2` | `program/deferred/lighting_cs.glsl` | comp | gbuffer, shadow, IMG_SKY, LUT | RT_HDR |
 | `composite1` | `program/post/exposure/measure_cs.glsl` | comp | RT_HDR | RT_LUM |
 | `composite2` | `program/post/exposure/adapt_cs.glsl` | comp | RT_LUM | ExposureBlock |
-| `composite3..10` | `program/post/bloom/downsample_cs.glsl` | comp | RT_HDR → BLOOMn | BLOOMn+1 |
+| `composite3..10` | `program/post/bloom/downsample_cs.glsl` | comp | RT_HDR → BLOOMn | BLOOMn+1（先乘曝光，转显示参考空间） |
 | `composite11..17` | `program/post/bloom/upsample_cs.glsl` | comp | BLOOMn+1 | BLOOMn（累加） |
 | `final` | `program/post/final.glsl` | frag+vert | RT_HDR, BLOOM1, ExposureBlock | 背缓冲（屏幕） |
 
@@ -109,16 +109,16 @@ downsample 占 8 个槽位（`BLOOM_LEVEL 0..7`）、upsample 占 7 个（`BLOOM
 | 主题 | 位置 |
 |---|---|
 | 大气物理参数（含单位/来源） | `lib/atmosphere/constants.glsl` |
-| 单次散射积分 + 多重散射近似 | `lib/atmosphere/scattering.glsl` |
+| 单次散射积分 + 多重散射双项近似（地面反弹 + 迎光解析叶） | `lib/atmosphere/scattering.glsl` |
 | transmittance LUT 生成/查询 | `lib/atmosphere/transmittance.glsl` |
 | 天空 1/8 分辨率 tile 剔除 | `program/deferred/sky_cs.glsl` |
-| 假 GI、环境光、GGX 高光 | `program/deferred/lighting_cs.glsl` + `lib/lighting/tuning.glsl` |
+| 假 GI（中档）、环境光、Cook-Torrance 高光 | `program/deferred/lighting_cs.glsl` + `lib/lighting/tuning.glsl` |
 | 软阴影 PCF | `lib/lighting/shadow.glsl` |
-| 曝光（对数平均 + 中心权重） | `program/post/exposure/{measure,adapt}_cs.glsl` |
+| 曝光（对数平均 + 中心权重） | `program/post/exposure/{measure,adapt}_cs.glsl`，参数见 `lib/lighting/tuning.glsl` |
 | Bloom（13-tap 降 / tent 上，8 级） | `program/post/bloom/{downsample_cs,upsample_cs}.glsl`，分级依据见 [`DESIGN_GOALS.md`](DESIGN_GOALS.md) §4 |
 | 色调映射 / 暗角 | `program/post/final.glsl` |
 
-**单位约定**（大气）：距离 km、系数 1/km、辐亮度为无量纲的场景线性值。
+**单位约定**：见 [`DESIGN_GOALS.md`](DESIGN_GOALS.md) §6。距离 km、系数 1/km、辐亮度与辐照度都以 `NITS_PER_UNIT`（200 cd/m²）为单位。所有 HDR 缓冲都是 16 位浮点。太阳盘物理辐亮度是 8e6 单位，超出半浮点上限 65504，因此写入缓冲时乘 `SUN_DISC_RENDER_SCALE`（1/256 → 3.1e4 单位）；bloom 源另有 `BLOOM_SOURCE_CEILING`（4096）兜底，防止高曝光下溢出成 inf 污染模糊链。
 
 **调参入口**：
 
@@ -151,7 +151,7 @@ downsample 占 8 个槽位（`BLOOM_LEVEL 0..7`）、upsample 占 7 个（`BLOOM
    `shaders.properties` 尚未定义 `profile.*`，低/高/影视档位待补。
 5. **构建器硬编码路径**：`build.py` 顶部的 `SHADERPACK` 指向本机 Minecraft 目录，换机器需修改。
 6. **纹理未清理**：`textures/` 中 `caustic_*`、`cloud_coverage`、`moon*`、`rain_ripples_n` 目前无引用。
-7. **exposure / bloom 参数为经验值**：`EXPOSURE_ADAPT_SPEED`、`BLOOM_STRENGTH`、
+7. **exposure / bloom 参数为经验值**：`EXPOSURE_ADAPT_RATE`、`BLOOM_STRENGTH`、
    `BLOOM_SPREAD`、`BLOOM_THRESHOLD_SMOOTH` 等未做画面标定。
 
 ---
