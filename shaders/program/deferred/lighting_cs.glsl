@@ -1,20 +1,21 @@
 // {{SHADER_COMP}}
 #ifdef {{SHADER_COMP}}
 #include "/lib/prelude.glsl"
-#include "/lib/brdf.glsl"
-#include "/lib/color.glsl"
-#include "/lib/shadow.glsl"
-#include "/lib/atmosphere.glsl"
+#include "/lib/lighting/brdf.glsl"
+#include "/lib/lighting/tuning.glsl"
+#include "/lib/utility/color.glsl"
+#include "/lib/lighting/shadow.glsl"
+#include "/lib/atmosphere/all.glsl"
 
 uniform sampler2D depthtex0;
 uniform sampler2D shadowtex0;
 uniform sampler2D shadowtex1;
 uniform sampler2D shadowcolor0;
 uniform sampler2D noisetex;
-uniform sampler2D {{RT_BASE_COLOR}};
+uniform sampler2D {{RT_ALBEDO}};
 uniform sampler2D {{RT_NORMAL}};
-uniform sampler2D {{RT_LIGHTING0}};
-uniform sampler2D {{RT_BACK}};
+uniform sampler2D {{RT_LIGHTMAP}};
+uniform sampler2D {{RT_HDR}};
 uniform sampler2D {{IMG_SKY_SAMPLER}};
 uniform sampler2D {{IMG_TRANSMIT_LUT_SAMPLER}};
 
@@ -29,24 +30,9 @@ uniform float eyeAltitude;
 uniform float viewWidth;
 uniform float viewHeight;
 
-layout({{IMG_BACK_FORMAT}}) uniform writeonly image2D {{IMG_BACK}};
+layout({{RT_HDR_FORMAT}}) uniform writeonly image2D {{RT_HDR_IMG}};
 layout(local_size_x = 8, local_size_y = 8, local_size_z = 1) in;
 const vec2 workGroupsRender = vec2(1.0, 1.0);
-
-// ── Lighting tuning ─────────────────────────────────────────
-// SUN_SCATTER_GAIN stands in for the multiple scattering this single-bounce
-// model cannot resolve; it also lifts the fake GI on shadowed surfaces.
-const float SUN_SCATTER_GAIN    = 2.5;
-const float FAKE_GI_STRENGTH    = 0.05;
-const vec3  AMBIENT_SKY_TINT    = vec3(0.5, 0.65, 1.0);
-const float AMBIENT_GAIN        = 0.75;
-const float LOCAL_LIGHT_EXP     = 3.0;
-const vec3  LOCAL_LIGHT_TINT    = vec3(1.0, 0.6, 0.2);
-const float MASTER_GAIN         = 0.6;
-const float SPECULAR_ROUGHNESS  = 0.75;
-const float SPECULAR_F0         = 0.03;
-const float SPECULAR_F0_GRAZING = 0.15;
-const float SPECULAR_GAIN       = 0.3;
 
 void main()
 {
@@ -75,7 +61,7 @@ void main()
         trans.rgb = rgbFromSpectral(trans) * 0.2;
         #endif
 
-        vec3 stars = texelFetch({{RT_BACK}}, pixelCoordinate, 0).rgb * trans.rgb;
+        vec3 stars = texelFetch({{RT_HDR}}, pixelCoordinate, 0).rgb * trans.rgb;
 
         vec3 dither = (getNoise(noisetex, uv, vec2(viewWidth, viewHeight)).rgb - 0.5) * 0.03;
         vec3 sky = texture({{IMG_SKY_SAMPLER}}, uv).rgb;
@@ -84,13 +70,13 @@ void main()
         float sunCosAngle = dot(viewDir, normalize(sunDirection));
         float sunIntensity = sunDiscMask(sunCosAngle) * SUN_DISC_RADIANCE;
         sky += sunIntensity * trans.rgb;
-        imageStore({{IMG_BACK}}, pixelCoordinate, vec4(sky, 1.0));
+        imageStore({{RT_HDR_IMG}}, pixelCoordinate, vec4(sky, 1.0));
         return;
     }
 
-    vec3 baseColor = texelFetch({{RT_BASE_COLOR}}, pixelCoordinate, 0).rgb;
+    vec3 baseColor = texelFetch({{RT_ALBEDO}}, pixelCoordinate, 0).rgb;
     vec4 normal = texelFetch({{RT_NORMAL}}, pixelCoordinate, 0);
-    vec4 lighting0 = texelFetch({{RT_LIGHTING0}}, pixelCoordinate, 0);
+    vec4 lighting0 = texelFetch({{RT_LIGHTMAP}}, pixelCoordinate, 0);
 
     vec3 NDCPosition = vec3(clipXY, depth * 2.0 - 1.0);
     vec3 viewPosition = projectAndDivide(gbufferProjectionInverse, NDCPosition);
@@ -124,6 +110,6 @@ void main()
     vec3 specColor = spec * sunColor.rgb * SUN_SCATTER_GAIN * sunLightAmount * f;
     outColor += specColor * SPECULAR_GAIN;
 
-    imageStore({{IMG_BACK}}, pixelCoordinate, vec4(outColor, 1.0));
+    imageStore({{RT_HDR_IMG}}, pixelCoordinate, vec4(outColor, 1.0));
 }
 #endif

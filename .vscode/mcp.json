@@ -1,0 +1,13 @@
+{
+  "servers": {
+    "renderdoc": {
+      "type": "stdio",
+      "command": "C:\\Users\\qwert\\AppData\\Local\\Programs\\Python\\Python313\\python.exe",
+      "args": ["-m", "renderdoc_mcp"],
+      "cwd": "E:\\Users\\qwert\\Desktop\\PYTest\\renderdoc-mcp",
+      "env": {
+        "RENDERDOC_MODULE_PATH": "E:\\Users\\qwert\\Desktop\\C++Test\\renderdoc\\x64\\Release\\pymodules"
+      }
+    }
+  }
+}

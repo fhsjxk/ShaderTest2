@@ -7,7 +7,7 @@ uniform sampler2D starColorTex;
 mediump in vec2 uv;
 mediump flat in int index;
 
-/* RENDERTARGETS: {RT_BACK} */
+/* RENDERTARGETS: {{RT_HDR_SLOT}} */
 layout(location = 0) out vec4 outColor;
 
 // Star disc falloff in quad UV space, and its peak radiance.

@@ -14,7 +14,7 @@ in vec3 normal;
 in vec4 lighting;
 in float sunLighting;
 
-/* RENDERTARGETS: {RT_BASE_COLOR},{RT_NORMAL},{RT_LIGHTING0} */
+/* RENDERTARGETS: {{RT_ALBEDO_SLOT}},{{RT_NORMAL_SLOT}},{{RT_LIGHTMAP_SLOT}} */
 
 layout(location = 0) out vec4 outBaseColor;
 layout(location = 1) out vec4 outNormal;

@@ -2,7 +2,7 @@
 
 // {{SHADER_FRAG}}
 #ifdef {{SHADER_FRAG}}
-#include "/lib/shadow.glsl"
+#include "/lib/lighting/shadow.glsl"
 
 uniform sampler2D gtexture;
 
@@ -20,7 +20,7 @@ void main()
 
 // {{SHADER_VERT}}
 #ifdef {{SHADER_VERT}}
-#include "/lib/shadow.glsl"
+#include "/lib/lighting/shadow.glsl"
 
 out float alpha;
 out vec2 texcoord;

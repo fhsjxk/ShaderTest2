@@ -1,6 +1,6 @@
 // {{SHADER_COMP}}
 #ifdef {{SHADER_COMP}}
-#include "/lib/atmosphere.glsl"
+#include "/lib/atmosphere/all.glsl"
 
 uniform sampler2D depthtex0;
 uniform sampler2D {{IMG_TRANSMIT_LUT_SAMPLER}};

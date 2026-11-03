@@ -6,27 +6,33 @@
 
 ## 零、当前目录约定（2026-11 结构整理后）
 
-源码树与构建产物分离，构建由 `build.py` 完成，输出整个 shaderpack 到 Minecraft 目录。
+**仓库 `shaders/` 目录与最终 shaderpack 的 `shaders/` 一一对应**（同路径、同文件名）；开发期由 `build.py` 做占位符替换并生成 `world0/` 薄壳，产物不含任何 `build.py` 的痕迹。
 
 | 路径 | 职责 | 规则 |
 |------|------|------|
-| `options.glsl`（仓库根） | 用户可调开关与滑块 | 只有 `#define`；名字需同时出现在 `shaders.properties` 的 `sliders` 里才会显示 |
-| `settings.glsl`（仓库根） | Iris 内建 uniform 常量 | 不得放用户选项；与包布局相关的值一律放 `build.py` |
-| `lib/prelude.glsl` | **唯一入口** | 每个 stage 的第一条 include；聚合 settings/options/math/rt_formats |
-| `lib/rt_formats.glsl` | 由 `build.py` 生成的 RT 格式声明 | 手写会与 `RT_LIST` 脱节，勿改 |
-| `lib/*.glsl` | 纯函数库（math/color/brdf/shadow/atmosphere） | **不得包含 `main()`**，不得定义 Iris uniform |
-| `program/*.glsl` | pass 的 include 体（可含 `// {{SHADER_FRAG}}` 等标记） | 一个文件可同时含 frag/vert/geom 三段；compute pass 命名为 `*_cs.glsl` |
-| `build.py` | 模板替换 + 入口生成 + 输出 | `PIPELINE` 决定 pass 顺序，`RT_LIST`/`IMG_LIST` 是缓冲区的唯一真源 |
+| `shaders/options.glsl` | 用户可调开关与滑块 | 只有 `#define`；名字需同时出现在 `shaders.properties` 的 `sliders` 里才会显示 |
+| `shaders/settings.glsl` | Iris 内建 uniform 常量 | 不得放用户选项；与包布局相关的值一律放 `build.py` |
+| `shaders/lib/prelude.glsl` | **唯一入口** | 每个 stage 的第一条 include；聚合 settings/options/math/rt_formats |
+| `shaders/lib/rt_formats.glsl` | 由 `build.py` 生成的 RT 格式声明 | 手写会与 `RT_LIST` 脱节，勿改 |
+| `shaders/lib/<域>/*.glsl` | 纯函数库，按域分目录：`utility/`(math,color) `lighting/`(brdf,shadow,tuning) `atmosphere/`(9 个模块) | **不得包含 `main()`**，不得定义 Iris uniform；域内 ≥3 文件时提供 `all.glsl` 聚合器 |
+| `shaders/program/<域>/*.glsl` | pass 的 include 体，域为 `gbuffers/ shadow/ setup/ prepare/ deferred/ post/` | 一个文件可同时含 frag/vert/geom 三段；compute pass 命名为 `*_cs.glsl`；一个文件可通过 `{{SLOT_DEFINES}}` 服务多个槽位 |
+| `shaders/textures/` | 随包资源 | 只放被引用的文件；`textures/projects/` 为制作工程，不进包 |
+| `shaders/world0/` | Iris 槽位薄壳 | **仅由 `build.py` 生成**，不手改、不入库 |
+| `build.py`（仓库根） | 模板替换 + 入口生成 + 输出 | `PIPELINE` 决定 pass 顺序，`RT_LIST`/`IMG_LIST` 是缓冲区的唯一真源 |
 
 约定要点：
 
 - **尺寸常量不写死在 shader 里**：使用 `{{RT_<NAME>_SIZE_X}}` / `{{IMG_<NAME>_SIZE_X}}`，由 `RT_LIST`/`IMG_LIST` 生成。
 - **`lib/` 内不得同时承担 pass 源码**（历史上的 `shadowmap.glsl` 同时含 `main()`，已拆分）。
-- 用户可见颜色/强度参数放在根 `options.glsl`；物理常量放在所属模块（如 `lib/atmosphere.glsl`），必须带单位与来源注释。
+- 用户可见颜色/强度参数放在 `shaders/options.glsl`；物理常量放在所属模块（如 `shaders/lib/atmosphere/constants.glsl`），必须带单位与来源注释。光照"外观调参"常量集中在 `shaders/lib/lighting/tuning.glsl`。
 
 ---
 
 ## 一、发现的问题汇总
+
+> ⚠️ 本节与「四、执行计划」记录的是 **2026-06-22 那次整理之前**的状态，其中的文件路径
+> （`lib/common.glsl`、`program/shadow_common.glsl`、`program/composite_*.glsl` 等）属于旧布局，
+> 仅作历史参考。当前布局见上节「零、当前目录约定」与 [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md)。
 
 ### 1. 函数命名风格不统一
 
@@ -225,24 +231,33 @@ void main()
 ### E. 模板占位符
 
 ```
-规则：{{SCREAMING_SNAKE_CASE}}
-- Render Target 引用：{{RT_*}}
-- Custom Image 引用：{{IMG_*}}
-- 采样器引用：{{IMG_*_SAMPLER}}
-- 格式引用：{{RT_*_FORMAT}} 或 {{IMG_*_FORMAT}}
-- 着色器类型标记：{{SHADER_COMP}}, {{SHADER_FRAG}}, {{SHADER_VERT}}, {{SHADER_GEOM}}
+规则：单命名空间 {{SCREAMING_SNAKE_CASE}}，后缀表示"用在哪里"
+
+缓冲（colortex）
+  {{RT_<NAME>}}           → colortexN   sampler2D / 属性键 / flip 键
+  {{RT_<NAME>_IMG}}       → colorimgN   image2D 句柄
+  {{RT_<NAME>_SLOT}}      → N           RENDERTARGETS 索引
+  {{RT_<NAME>_FORMAT}}    → rgba8 等    layout(...) 格式
+  {{RT_<NAME>_SIZE}}      → 1.0 1.0     相对尺寸（含 _SIZE_X / _SIZE_Y）
+自定义图（custom image）
+  {{IMG_<NAME>}} / {{IMG_<NAME>_SAMPLER}} / {{IMG_<NAME>_FORMAT}} / {{IMG_<NAME>_SIZE_X}}
+整块生成
+  {{GENERATED_RT_FORMATS}} / {{GENERATED_RT_SIZES}} / {{GENERATED_IMG_DECLS}}
+阶段标记
+  {{SHADER_VERT}} {{SHADER_FRAG}} {{SHADER_GEOM}} {{SHADER_COMP}}
+槽位附加宏（一个源文件服务多个 Iris 槽位时）
+  {{SLOT_DEFINES}}        → 例如 #define BLUR_AXIS 1
 
 ✅ 正确示例：
-  {{RT_BACK}}
-  {{RT_BASE_COLOR}}
-  {{IMG_BLOOM}}
-  {{IMG_BLOOM_SAMPLER}}
-  {{IMG_SKY_FORMAT}}
-  {{SHADER_FRAG}}
+  /* RENDERTARGETS: {{RT_ALBEDO_SLOT}},{{RT_NORMAL_SLOT}},{{RT_LIGHTMAP_SLOT}} */
+  uniform sampler2D {{RT_HDR}};
+  layout({{RT_HDR_FORMAT}}) uniform writeonly image2D {{RT_HDR_IMG}};
+  vec2 workGroupsRender = vec2({{IMG_SKY_SIZE_X}}, {{IMG_SKY_SIZE_Y}});
 
-❌ 需要修正：
-  {{RT_BACK_IMG}}        → 统一使用 {{IMG_BACK}}
-  // SHADER_FRAG          → 改为 // {{SHADER_FRAG}}（添加模板括号）
+❌ 禁止（已移除的旧写法）：
+  {RT_HDR}                → 用 {{RT_HDR_SLOT}}（单花括号无法与双花括号区分）
+  {{IMG_HDR}}             → RT 不提供 IMG_ 别名，用 {{RT_HDR_IMG}}
+  {{RT_HDR_FORMAT_IMG}}   → 用 {{RT_HDR_FORMAT}}
 ```
 
 ### F. 着色器类型标记
@@ -306,10 +321,16 @@ void main()
 
 ### J. 代码组织建议
 
-1. **`lib/prelude.glsl`** — 唯一入口，聚合 `settings.glsl` / `options.glsl` / `math.glsl` / `rt_formats.glsl`
-2. **`lib/atmosphere.glsl`** — 大气散射（物理常量集中于此，全部带单位与来源注释）
-3. **`options.glsl`**（仓库根） — 所有用户可配置宏；`settings.glsl`（仓库根）只放 Iris 内建常量
-4. **`lib/shadow.glsl`** — 阴影共享函数（`distortShadowClipPos` 等）；pass 本体在 `program/shadow.glsl`
+1. **`lib/prelude.glsl`** — 唯一入口，聚合 `settings.glsl` / `options.glsl` / `utility/math.glsl` / `rt_formats.glsl`
+2. **`lib/atmosphere/`** — 大气散射，按职责拆为 constants / geometry / phase / medium / transmittance / scattering / skyview / scene，`all.glsl` 聚合
+3. **`lib/lighting/`** — `brdf.glsl`、`shadow.glsl`，以及集中放置外观调参的 `tuning.glsl`
+4. **`lib/utility/`** — `math.glsl`、`color.glsl`；`program/` 侧同名域放 pass 本体
+
+### K. 聚合器与多槽位复用
+
+1. **聚合器**：域内文件 ≥3 个时提供 `all.glsl`（如 `lib/atmosphere/all.glsl`），内容只有按依赖顺序的 `#include`，不含逻辑。调用方只 include 聚合器，域内拆分对调用方不可见。
+2. **多槽位复用**：一个源文件服务多个 Iris 槽位时，槽位差异**必须**通过 `build.py` 的 `Pass.defines` 注入（如 `("BLOOM_LEVEL 2",)`），不得复制文件、也不得在 properties 里另配一份。
+3. **一个 stage 一个文件**：只有在文件确实需要同时提供多个 stage 时才用 `// {{SHADER_FRAG}}` 分段；单纯为了少建文件而在一个文件里塞多个 stage 是不允许的。
 
 ---
 

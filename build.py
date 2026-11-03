@@ -15,14 +15,26 @@ SHADERPACK = Path(
     "/shaderpacks/ShaderTest2/shaders/"
 )
 
-DIR_TEXTURE      = "textures"
-DIR_LIB          = "lib"
+# Source tree. Mirrors the pack layout one-to-one; the builder only substitutes
+# template variables and generates world0/ entry shims.
+SRC_ROOT         = Path("shaders")
+
 DIR_PROGRAM      = "program"
 DIR_WORLD        = "world0"
 
-GBUFFER_COMMON   = "gbuffers_common.glsl"
-SHADOW_PROGRAM   = "shadow_pass.glsl"
+GBUFFER_COMMON   = "gbuffers/common.glsl"          # relative to program/
+SHADOW_PROGRAM   = "program/shadow/shadow.glsl"    # relative to shaders/
 PROPERTIES       = "shaders.properties"
+
+# Handled by dedicated code, must not be copied by the generic tree walk.
+WALK_SKIP_FILES  = {PROPERTIES}
+# Generated, or development-only source assets (authoring projects, etc.).
+WALK_SKIP_PATHS  = {
+    (DIR_WORLD,),
+    ("textures", "projects"),
+}
+# Only these are template-expanded; everything else is copied byte for byte.
+TEMPLATED_SUFFIXES = {".glsl"}
 
 
 @dataclass
@@ -32,15 +44,28 @@ class RT:
     size: str = "1.0 1.0"
 
 
+# Number of bloom cascade levels. Each level halves the resolution, so level 1 is
+# half res and level BLOOM_LEVELS is 1/2^BLOOM_LEVELS. Everything else (buffers,
+# passes, docs) is derived from this number.
+BLOOM_LEVELS = 8
+
+
 RT_LIST = [
-    RT("RT_BASE_COLOR",  "RGBA8"),
-    RT("RT_NORMAL",      "RGBA8"),
-    RT("RT_SPECULAR",    "RGBA8"),
-    RT("RT_LIGHTING0",   "RGBA16F"),
-    RT("RT_LIGHTING1",   "RGBA8"),
-    RT("RT_BLOOM",       "RGBA16F", size="1.505 1.02"),
-    RT("RT_BACK",        "RGBA16F"),
+    RT("RT_ALBEDO",        "RGBA8"),
+    RT("RT_NORMAL",        "RGBA8"),
+    RT("RT_SPECULAR",      "RGBA8"),
+    RT("RT_LIGHTMAP",      "RGBA16F"),
+    RT("RT_VERTEX_LIGHT",  "RGBA8"),
+    RT("RT_HDR",           "RGBA16F"),
+    # Luminance buffer for auto exposure (log-average + centre weighting).
+    RT("RT_LUM",           "RG16F",   size="0.03125 0.03125"),
 ]
+
+# Bloom pyramid: one buffer per level, 1/2 down to 1/2^BLOOM_LEVELS.
+for _level in range(1, BLOOM_LEVELS + 1):
+    _scale = 0.5 ** _level
+    RT_LIST.append(RT(f"RT_BLOOM{_level}", "RGBA16F",
+                      size=f"{_scale:g} {_scale:g}"))
 
 
 @dataclass
@@ -61,16 +86,48 @@ IMG_LIST = [
 ]
 
 
-PIPELINE = {
-    "setup":     ["exposure"],
-    "prepare":   ["transmit_lut", "skyview"],
-    "deferred":  ["sky", "lighting"],
-    "composite": ["mipmap", "exposure_adapt",
-                  "bloom_atlas",        # .vsh+.gsh+.fsh -> atlas packing only
-                  "bloom_blur_h",       # .vsh+.fsh -> horizontal blur (buffer flip)
-                  "bloom_blur_v",       # .vsh+.fsh -> vertical blur (buffer flip)
-                  "bloom", "exposure", "final"],
-}
+@dataclass
+class Pass:
+    """One Iris program slot: which source it includes and which stages it needs.
+
+    A single source file may serve several slots by receiving different defines
+    (see the bloom chain), which is why the table is the single source of truth
+    for the pipeline order.
+    """
+    slot: str
+    source: str                       # relative to shaders/
+    stages: tuple[str, ...] = ("frag", "vert")
+    defines: tuple[str, ...] = ()
+
+
+PIPELINE = [
+    Pass("setup1",      "program/setup/exposure_init_cs.glsl",       ("comp",)),
+    Pass("prepare1",    "program/prepare/transmittance_lut_cs.glsl", ("comp",)),
+    Pass("prepare2",    "program/prepare/skyview_cs.glsl",           ("comp",)),
+    Pass("deferred1",   "program/deferred/sky_cs.glsl",              ("comp",)),
+    Pass("deferred2",   "program/deferred/lighting_cs.glsl",         ("comp",)),
+
+    # Auto exposure: sparse log-luma measure, then temporal adaptation.
+    Pass("composite1",  "program/post/exposure/measure_cs.glsl",     ("comp",)),
+    Pass("composite2",  "program/post/exposure/adapt_cs.glsl",       ("comp",)),
+]
+
+# Bloom: 13-tap downsample pyramid, then tent upsample that accumulates into the
+# finer level. Both stages are single compute passes driven by BLOOM_LEVEL.
+_bloom_slot = 3
+for _level in range(BLOOM_LEVELS):
+    PIPELINE.append(Pass(f"composite{_bloom_slot}",
+                         "program/post/bloom/downsample_cs.glsl",
+                         ("comp",), (f"BLOOM_LEVEL {_level}",)))
+    _bloom_slot += 1
+for _level in range(BLOOM_LEVELS - 1, 0, -1):
+    PIPELINE.append(Pass(f"composite{_bloom_slot}",
+                         "program/post/bloom/upsample_cs.glsl",
+                         ("comp",), (f"BLOOM_LEVEL {_level}",)))
+    _bloom_slot += 1
+
+# Tone mapping, exposure and bloom are applied here, writing the backbuffer.
+PIPELINE.append(Pass("final", "program/post/final.glsl", ("frag", "vert")))
 
 GBUFFER_VARIANTS = [
     "basic", "line", "textured", "textured_lit", "skybasic", "skytextured",
@@ -80,9 +137,6 @@ GBUFFER_VARIANTS = [
 ]
 
 SHADOW_VARIANTS = [""]
-
-EXCLUDE_ROOT = {PROPERTIES, ".gitignore", "NAMING_CONVENTION.md",
-                "ShaderTest2.code-workspace"}
 
 
 class TemplateEngine:
@@ -136,31 +190,27 @@ def build_template_vars() -> TemplateEngine:
     rt_size_lines = []
 
     for i, rt in enumerate(RT_LIST):
-        name  = rt.name
-        fmt   = rt.fmt
-        short = name.replace("RT_", "IMG_")
+        name = rt.name
+        fmt  = rt.fmt
 
-        # {RT_BACK} → 0  |  {{RT_BACK}} → colortex0
-        tmpl.add("{" + name + "}", i)
-        tmpl.add("{{" + name + "}}", f"colortex{i}")
-        tmpl.add("{{" + name + "_IMG}}", f"colorimg{i}")
-        tmpl.add("{{" + name + "_FORMAT_IMG}}", fmt.lower())
-        tmpl.add("{{" + short + "}}", f"colorimg{i}")
-        tmpl.add("{{" + short + "_FORMAT}}", fmt.lower())
+        # One namespace, suffix states how the buffer is referenced.
+        tmpl.add("{{" + name + "}}",        f"colortex{i}")   # sampler / property key
+        tmpl.add("{{" + name + "_IMG}}",    f"colorimg{i}")   # image2D handle
+        tmpl.add("{{" + name + "_SLOT}}",   i)                # RENDERTARGETS index
+        tmpl.add("{{" + name + "_FORMAT}}", fmt.lower())      # layout(...) format
 
         # Relative buffer size, so shaders sharing a layout never hardcode it.
         sizeX, sizeY = rt.size.split()
-        for key in (name, short):
-            tmpl.add("{{" + key + "_SIZE}}",   rt.size)
-            tmpl.add("{{" + key + "_SIZE_X}}", sizeX)
-            tmpl.add("{{" + key + "_SIZE_Y}}", sizeY)
+        tmpl.add("{{" + name + "_SIZE}}",   rt.size)
+        tmpl.add("{{" + name + "_SIZE_X}}", sizeX)
+        tmpl.add("{{" + name + "_SIZE_Y}}", sizeY)
 
         rt_fmt_lines.append(f"const int colortex{i}Format = {fmt};")
         rt_size_lines.append(f"size.buffer.colortex{i} = {rt.size}")
 
     rt_fmt_lines.append("*/")
-    tmpl.add("{{RT_FORMATS}}", "\n".join(rt_fmt_lines))
-    tmpl.add("{{RT_SIZE}}",    "\n".join(rt_size_lines))
+    tmpl.add("{{GENERATED_RT_FORMATS}}", "\n".join(rt_fmt_lines))
+    tmpl.add("{{GENERATED_RT_SIZES}}",   "\n".join(rt_size_lines))
 
     # ── Custom images ───────────────────────────────────────────
     img_lines = []
@@ -180,7 +230,7 @@ def build_template_vars() -> TemplateEngine:
             f"{img.pixel.lower()} {img.image.lower()} {img.type_.lower()} "
             f"{str(img.clear).lower()} {str(img.relative).lower()} {img.size}"
         )
-    tmpl.add("{{IMG_DECS}}", "\n".join(img_lines))
+    tmpl.add("{{GENERATED_IMG_DECLS}}", "\n".join(img_lines))
 
     # ── Shader-type markers ─────────────────────────────────────
     for st in ("SHADER_COMP", "SHADER_FRAG", "SHADER_VERT", "SHADER_GEOM"):
@@ -190,43 +240,35 @@ def build_template_vars() -> TemplateEngine:
     return tmpl
 
 
-_STAGE_EXT = {
-    "SHADER_COMP": ".csh",
-    "SHADER_FRAG": ".fsh",
-    "SHADER_VERT": ".vsh",
-    "SHADER_GEOM": ".gsh",
+STAGE_EXT = {"vert": ".vsh", "frag": ".fsh", "geom": ".gsh", "comp": ".csh"}
+STAGE_MACRO = {
+    "vert": "SHADER_VERT",
+    "frag": "SHADER_FRAG",
+    "geom": "SHADER_GEOM",
+    "comp": "SHADER_COMP",
 }
 
 
-def _source(stage: str, include: str,
-            defines: list[str] | None = None) -> str:
-    """Build the entry-point shader source text."""
-    parts = [VERSION_HEADER, "", f"#define {stage}"]
-    if defines:
-        parts.extend(f"#define {d}" for d in defines)
+def _emit(tmpl: TemplateEngine, out_dir: Path, slot: str, stage: str,
+          include: str, defines: tuple[str, ...] = ()) -> None:
+    """Write one Iris entry shim: version, stage macro, extra defines, include."""
+    parts = [VERSION_HEADER, "", f"#define {STAGE_MACRO[stage]}"]
+    parts.extend(f"#define {d}" for d in defines)
     parts += ["", f"#include /{include}"]
-    return "\n".join(parts)
+    (out_dir / f"{slot}{STAGE_EXT[stage]}").write_text(
+        tmpl.apply("\n".join(parts)), encoding="utf-8")
 
 
-def _emit(tmpl: TemplateEngine, out_dir: Path, base: str,
-          stage: str, include: str,
-          defines: list[str] | None = None) -> None:
-    ext = _STAGE_EXT[stage]
-    (out_dir / f"{base}{ext}").write_text(
-        tmpl.apply(_source(stage, include, defines)), encoding="utf-8")
-
-
-def _emit_pair(tmpl: TemplateEngine, out_dir: Path, base: str,
-               include: str, defines: list[str] | None = None) -> None:
-    _emit(tmpl, out_dir, base, tmpl.frag, include, defines)
-    _emit(tmpl, out_dir, base, tmpl.vert, include, defines)
+def _emit_pass(tmpl: TemplateEngine, out_dir: Path, p: "Pass") -> None:
+    for stage in p.stages:
+        _emit(tmpl, out_dir, p.slot, stage, p.source, p.defines)
 
 
 class ShaderBuilder:
     def __init__(self):
         self.tmpl = build_template_vars()
-        self.src_prog = Path(DIR_PROGRAM)
-        self.src_lib  = Path(DIR_LIB)
+        self.src_root  = SRC_ROOT
+        self.src_prog  = SRC_ROOT / DIR_PROGRAM
         self.out_world = SHADERPACK / DIR_WORLD
 
     # ── entry point ────────────────────────────────────────────
@@ -235,129 +277,90 @@ class ShaderBuilder:
         # 1 — clean & recreate output tree
         if SHADERPACK.exists():
             shutil.rmtree(SHADERPACK)
-        for d in (SHADERPACK / DIR_LIB,
-                  SHADERPACK / DIR_PROGRAM,
-                  self.out_world,
-                  SHADERPACK / DIR_TEXTURE):
-            os.makedirs(d, exist_ok=True)
+        os.makedirs(self.out_world, exist_ok=True)
 
-        # 3 — copy texture assets
-        for f in Path(DIR_TEXTURE).iterdir():
-            if f.is_file():
-                shutil.copy(f, SHADERPACK / DIR_TEXTURE / f.name)
+        # 2 — mirror the source tree (template substitution only)
+        self._copy_tree()
 
-        # 4 — process shared library files
-        for f in self.src_lib.iterdir():
-            if f.is_file():
-                self.tmpl.apply_file(f, SHADERPACK / DIR_LIB / f.name)
+        # 3 — properties (needs the blend expansion, so it is not walked)
+        self._properties()
 
-        # 5 — build shader stages
+        # 4 — generate world0/ entry shims
         self._gbuffers()
         self._shadows()
         self._pipeline()
-        self._properties()
 
-        # 6 — copy root-level loose files
-        for f in Path(".").iterdir():
-            if (f.is_file() and f.suffix != ".py"
-                    and f.name not in EXCLUDE_ROOT):
-                self.tmpl.apply_file(f, SHADERPACK / f.name)
+    # ── source tree mirror ─────────────────────────────────────
+
+    def _copy_tree(self) -> None:
+        """Copy shaders/ into the pack, expanding templates in GLSL only.
+
+        Paths are preserved, so a file in the pack always maps back to the file
+        it came from. world0/ is generated and shaders.properties is written by
+        _properties(), so both are skipped here.
+        """
+        for src in sorted(self.src_root.rglob("*")):
+            if not src.is_file():
+                continue
+
+            rel = src.relative_to(self.src_root)
+            parts = rel.parts
+            if src.name in WALK_SKIP_FILES:
+                continue
+            if any(parts[:len(skip)] == skip for skip in WALK_SKIP_PATHS):
+                continue
+
+            dst = SHADERPACK / rel
+            dst.parent.mkdir(parents=True, exist_ok=True)
+
+            if src.suffix.lower() in TEMPLATED_SUFFIXES:
+                self.tmpl.apply_file(src, dst)
+            else:
+                shutil.copy2(src, dst)
 
     # ── gbuffers ───────────────────────────────────────────────
 
     def _gbuffers(self) -> None:
-        common = self.src_prog / GBUFFER_COMMON
-        self.tmpl.apply_file(common, SHADERPACK / DIR_PROGRAM / GBUFFER_COMMON)
-
-        # A — variants relying on gbuffers_common (no dedicated file)
+        variants_dir = self.src_prog / "gbuffers"
         for variant in GBUFFER_VARIANTS:
-            if (self.src_prog / f"gbuffers_{variant}.glsl").exists():
-                continue
-            _emit_pair(self.tmpl, self.out_world,
-                       base=f"gbuffers_{variant}",
-                       include=f"{DIR_PROGRAM}/{GBUFFER_COMMON}",
-                       defines=[f"GBUFFER_{variant.upper()}"])
+            dedicated = variants_dir / f"{variant}.glsl"
+            if dedicated.is_file():
+                source = f"{DIR_PROGRAM}/gbuffers/{variant}.glsl"
+                stages = ["frag", "vert"]
+                if "{{SHADER_GEOM}}" in dedicated.read_text(encoding="utf-8"):
+                    stages.append("geom")
+            else:
+                source = f"{DIR_PROGRAM}/{GBUFFER_COMMON}"
+                stages = ["frag", "vert"]
 
-        # B — variants with a dedicated source file
-        for f in self.src_prog.iterdir():
-            if not f.name.startswith("gbuffers_") or f.name == GBUFFER_COMMON:
-                continue
-
-            self.tmpl.apply_file(f, SHADERPACK / DIR_PROGRAM / f.name)
-
-            base    = f.stem
-            variant = base.removeprefix("gbuffers_")
-            inc     = f"{DIR_PROGRAM}/{f.name}"
-            defines = [f"GBUFFER_{variant.upper()}"]
-
-            _emit_pair(self.tmpl, self.out_world, base, inc, defines)
-
-            if "{{SHADER_GEOM}}" in f.read_text(encoding="utf-8"):
-                _emit(self.tmpl, self.out_world, base,
-                      self.tmpl.geom, inc, defines)
+            _emit_pass(self.tmpl, self.out_world,
+                       Pass(f"gbuffers_{variant}", source, tuple(stages),
+                            (f"GBUFFER_{variant.upper()}",)))
 
     # ── shadows ────────────────────────────────────────────────
 
     def _shadows(self) -> None:
-        # The pass body lives in program/, which is not copied wholesale.
-        self.tmpl.apply_file(self.src_prog / SHADOW_PROGRAM,
-                             SHADERPACK / DIR_PROGRAM / SHADOW_PROGRAM)
-
         for variant in SHADOW_VARIANTS:
-            sep  = "_" if variant else ""
-            base = f"shadow{sep}{variant}"
-            _emit_pair(self.tmpl, self.out_world, base,
-                       include=f"{DIR_PROGRAM}/{SHADOW_PROGRAM}",
-                       defines=[f"SHADOW{sep}{variant.upper()}"]
-                       if variant else None)
+            sep = "_" if variant else ""
+            defines = (f"SHADOW{sep}{variant.upper()}",) if variant else ()
+            _emit_pass(self.tmpl, self.out_world,
+                       Pass(f"shadow{sep}{variant}", SHADOW_PROGRAM,
+                            ("frag", "vert"), defines))
 
-    # ── pipeline (prepare / composite / deferred) ──────────────
+    # ── pipeline ───────────────────────────────────────────────
 
     def _pipeline(self) -> None:
-        seen: set[Path] = set()
-
-        for prefix, names in PIPELINE.items():
-            for n, name in enumerate(names, 1):
-                final = f"{prefix}{n}"
-
-                # common_*.glsl  (shared include, e.g. common_mipmap.glsl)
-                common = self.src_prog / f"common_{name}.glsl"
-                if common.exists():
-                    if common not in seen:
-                        self.tmpl.apply_file(
-                            common, SHADERPACK / DIR_PROGRAM / common.name)
-                        seen.add(common)
-                    _emit_pair(self.tmpl, self.out_world, final,
-                               f"{DIR_PROGRAM}/{common.name}")
-
-                # {prefix}_{name}.glsl  (fragment / vertex entry points)
-                fv = self.src_prog / f"{prefix}_{name}.glsl"
-                if fv.exists():
-                    self.tmpl.apply_file(fv,
-                                         SHADERPACK / DIR_PROGRAM / fv.name)
-                    _emit_pair(self.tmpl, self.out_world, final,
-                               f"{DIR_PROGRAM}/{fv.name}")
-
-                    # Also emit geometry shader if declared in source
-                    if "{{SHADER_GEOM}}" in fv.read_text(encoding="utf-8"):
-                        _emit(self.tmpl, self.out_world, final,
-                              self.tmpl.geom, f"{DIR_PROGRAM}/{fv.name}")
-
-                # {prefix}_{name}_cs.glsl  (compute entry points)
-                cs = self.src_prog / f"{prefix}_{name}_cs.glsl"
-                if cs.exists():
-                    self.tmpl.apply_file(cs,
-                                         SHADERPACK / DIR_PROGRAM / cs.name)
-                    _emit(self.tmpl, self.out_world, final,
-                          self.tmpl.comp, f"{DIR_PROGRAM}/{cs.name}")
+        for p in PIPELINE:
+            _emit_pass(self.tmpl, self.out_world, p)
 
     # ── properties ─────────────────────────────────────────────
 
     def _properties(self) -> None:
-        text = Path(PROPERTIES).read_text(encoding="utf-8")
+        text = (self.src_root / PROPERTIES).read_text(encoding="utf-8")
 
-        # Expand "blend.X.gbuffers = off" → off for every RT
-        # Uses {{RT_NAME}} → colortexN (Iris buffer name), not {RT_NAME} → index
+        # Expand "blend.X.gbuffers = off" → off for every RT.
+        # {{RT_<NAME>}} expands to the Iris buffer name (colortexN), which is
+        # what the properties file expects here.
         pat = re.compile(r"blend\.([^.]+)\.gbuffers\s*=\s*off")
         expand = "\n".join(f"blend.\\1.{{{{{rt.name}}}}} = off" for rt in RT_LIST)
         text = pat.sub(expand, text)

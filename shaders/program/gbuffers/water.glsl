@@ -1,19 +1,19 @@
 // {{SHADER_FRAG}}
 #ifdef {{SHADER_FRAG}}
 #include "/lib/prelude.glsl"
-#include "/lib/brdf.glsl"
-#include "/lib/atmosphere.glsl"
+#include "/lib/lighting/brdf.glsl"
+#include "/lib/atmosphere/all.glsl"
 
 uniform vec3 sunDirection;
 uniform mat4 gbufferModelViewInverse;
 uniform mat4 gbufferProjectionInverse;
-uniform sampler2D {{RT_BACK}};
+uniform sampler2D {{RT_HDR}};
 uniform sampler2D {{IMG_SKYVIEW_SAMPLER}};
 
 in vec3 worldPos;
 in vec3 worldNormal;
 
-/* RENDERTARGETS: {RT_BACK} */
+/* RENDERTARGETS: {{RT_HDR_SLOT}} */
 layout(location = 0) out vec4 outColor;
 
 // Water reflectance at normal incidence.
@@ -27,7 +27,7 @@ void main()
     vec3 V = normalize(worldPos - cameraPos);
     float NdotV = max(-dot(N, V), 0.0);
 
-    vec3 back = texelFetch({{RT_BACK}}, ivec2(gl_FragCoord.xy), 0).rgb;
+    vec3 back = texelFetch({{RT_HDR}}, ivec2(gl_FragCoord.xy), 0).rgb;
 
     // World-space reflection direction, remapped into atmosphere space
     // (Minecraft's world Z is mirrored w.r.t. the atmosphere convention).

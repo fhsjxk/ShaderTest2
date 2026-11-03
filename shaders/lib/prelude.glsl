@@ -9,7 +9,7 @@
 //   rt_formats.glsl generated colortex format declarations
 #include "/settings.glsl"
 #include "/options.glsl"
-#include "/lib/math.glsl"
+#include "/lib/utility/math.glsl"
 #include "/lib/rt_formats.glsl"
 
 // Alpha cutout threshold used by both the gbuffer and the shadow pass.
