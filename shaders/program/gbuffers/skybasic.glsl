@@ -15,6 +15,8 @@ const float STAR_DISC_INNER   = 0.1;
 const float STAR_DISC_OUTER   = 0.5;
 const float STAR_BRIGHTNESS   = 0.05;
 
+// 也是临时为了出效果的
+
 void main()
 {
     float dist = length(uv);

@@ -19,13 +19,17 @@ layout(location = 0) out vec4 outColor;
 // Water reflectance at normal incidence.
 const float WATER_F0 = 0.02;
 
+// 水实现完全是临时的，只是为了快速看到效果，需要完全重写
+// 水有两个渲染思路，前向渲染和延迟渲染，延迟渲染可以添加多个深度缓冲区已记录水的深度（可能会有多层水）
+// 使用波叠加还是法线扰动还是FFT？可以使用镶嵌着色器制作几何波浪？
+
 void main()
 {
     vec3 N = normalize(worldNormal);
 
     vec3 cameraPos = gbufferModelViewInverse[3].xyz;
     vec3 V = normalize(worldPos - cameraPos);
-    float NdotV = max(-dot(N, V), 0.0);
+    float NdotV = clamp(-dot(N, V), 0.0, 1.0);
 
     vec3 back = texelFetch({{RT_HDR}}, ivec2(gl_FragCoord.xy), 0).rgb;
 

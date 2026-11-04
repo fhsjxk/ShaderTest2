@@ -11,7 +11,7 @@ from dataclasses import dataclass
 VERSION_HEADER = "#version 460 compatibility"
 
 SHADERPACK = Path(
-    "E:/Minecraft/.minecraft/versions/1.21.11-Fabric"
+    "E:/Minecraft/.minecraft/versions/26.3-Fabric"
     "/shaderpacks/ShaderTest2/shaders/"
 )
 
@@ -47,7 +47,7 @@ class RT:
 # Number of bloom cascade levels. Each level halves the resolution, so level 1 is
 # half res and level BLOOM_LEVELS is 1/2^BLOOM_LEVELS. Everything else (buffers,
 # passes, docs) is derived from this number.
-BLOOM_LEVELS = 8
+BLOOM_LEVELS = 10
 
 
 RT_LIST = [
@@ -70,6 +70,29 @@ for _level in range(1, BLOOM_LEVELS + 1):
     _scale = 0.5 ** _level
     RT_LIST.append(RT(f"RT_BLOOM{_level}", "RGBA16F",
                       size=f"{_scale:g} {_scale:g}"))
+
+
+# Iris documents 16 colortex (0..15) and 32 from 1.10.5 onwards. Measured on Iris
+# 1.10.3 with a probe pack, twice (with and without format declarations): buffers
+# 0..19 really get created, and from index 20 the binding silently falls back to a
+# previously bound texture -- no GL error, nothing in the log. Custom images are a
+# separate, hard limit of 16 that Iris does log.
+MAX_COLOR_BUFFERS = 32
+DOCUMENTED_COLOR_BUFFERS = 16
+MEASURED_COLOR_BUFFERS = 20
+if len(RT_LIST) > MAX_COLOR_BUFFERS:
+    raise SystemExit(
+        f"RT_LIST has {len(RT_LIST)} entries (colortex0..{len(RT_LIST) - 1}) but "
+        f"Iris enforces at most {MAX_COLOR_BUFFERS}. Lower BLOOM_LEVELS to "
+        f"{MAX_COLOR_BUFFERS - (len(RT_LIST) - BLOOM_LEVELS)} or free a slot.")
+if len(RT_LIST) > MEASURED_COLOR_BUFFERS:
+    print(f"warning: {len(RT_LIST)} render targets declared, past the measured "
+          f"working range of {MEASURED_COLOR_BUFFERS} (colortex0..19). Iris 1.10.3 "
+          f"binds a stale texture instead of failing, so verify with a capture.")
+elif len(RT_LIST) > DOCUMENTED_COLOR_BUFFERS:
+    print(f"note: {len(RT_LIST)} render targets declared, but only "
+          f"{DOCUMENTED_COLOR_BUFFERS} colortex are documented (colortex0..15). "
+          f"Measured working range is {MEASURED_COLOR_BUFFERS}.")
 
 
 @dataclass
@@ -118,17 +141,48 @@ PIPELINE = [
 ]
 
 # Bloom: 13-tap downsample pyramid, then tent upsample that accumulates into the
-# finer level. Both stages are single compute passes driven by BLOOM_LEVEL.
+# finer level. Both stages are shared sources driving every level, so each pass
+# gets its buffer pair and dispatch scale injected as defines.
+RT_SLOT = {rt.name: i for i, rt in enumerate(RT_LIST)}
+
+
+def _float_literal(value: float) -> str:
+    """Format as a GLSL float literal, which must contain a decimal point."""
+    text = f"{value:.10f}".rstrip("0")
+    return text + "0" if text.endswith(".") else text
+
+
+def _bloom_defines(src: str, dst: str, scale: float, level: int) -> tuple[str, ...]:
+    """Defines for one bloom pass.
+
+    BLOOM_SCALE has to reach the shader as a bare number: Iris parses
+    workGroupsRender from the preprocessed source with a plain float parse, so an
+    expression there is silently ignored and the pass dispatches at full screen
+    resolution instead of at the level's size.
+    """
+    return (
+        f"BLOOM_SRC colortex{RT_SLOT[src]}",
+        f"BLOOM_DST_IMG colorimg{RT_SLOT[dst]}",
+        f"BLOOM_SCALE {_float_literal(scale)}",
+        f"BLOOM_LEVEL {level}",
+    )
+
+
 _bloom_slot = 3
 for _level in range(BLOOM_LEVELS):
+    _src = "RT_HDR" if _level == 0 else f"RT_BLOOM{_level}"
     PIPELINE.append(Pass(f"composite{_bloom_slot}",
                          "program/post/bloom/downsample_cs.glsl",
-                         ("comp",), (f"BLOOM_LEVEL {_level}",)))
+                         ("comp",),
+                         _bloom_defines(_src, f"RT_BLOOM{_level + 1}",
+                                        0.5 ** (_level + 1), _level)))
     _bloom_slot += 1
 for _level in range(BLOOM_LEVELS - 1, 0, -1):
     PIPELINE.append(Pass(f"composite{_bloom_slot}",
                          "program/post/bloom/upsample_cs.glsl",
-                         ("comp",), (f"BLOOM_LEVEL {_level}",)))
+                         ("comp",),
+                         _bloom_defines(f"RT_BLOOM{_level + 1}", f"RT_BLOOM{_level}",
+                                        0.5 ** _level, _level)))
     _bloom_slot += 1
 
 # Tone mapping, exposure and bloom are applied here, writing the backbuffer.
@@ -191,6 +245,12 @@ def build_template_vars() -> TemplateEngine:
     tmpl = TemplateEngine()
 
     # ── Render targets ──────────────────────────────────────────
+    # The format block is wrapped in a comment because `RGBA16F` is not a GLSL
+    # token, but Iris still reads it: ConstDirectiveParser scans the source line by
+    # line and only checks that a line starts with `const`, so declarations inside
+    # a comment are picked up while the compiler never sees them. This block is the
+    # only place buffer formats are set -- the layout() qualifier on colorimgN does
+    # not create the buffer format, it only has to agree with it.
     rt_fmt_lines = ["/*"]
     rt_size_lines = []
 

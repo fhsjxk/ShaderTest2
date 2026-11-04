@@ -7,58 +7,29 @@
 
 // 13-tap downsample (COD:AW kernel). Level 0 reads the scene and applies the
 // bright-pass prefilter; every other level reads the previous, larger level.
-#if BLOOM_LEVEL == 0
-    #define SRC_TEX    {{RT_HDR}}
-    #define DST_IMG    {{RT_BLOOM1_IMG}}
-    #define DST_FORMAT {{RT_BLOOM1_FORMAT}}
-#elif BLOOM_LEVEL == 1
-    #define SRC_TEX    {{RT_BLOOM1}}
-    #define DST_IMG    {{RT_BLOOM2_IMG}}
-    #define DST_FORMAT {{RT_BLOOM2_FORMAT}}
-#elif BLOOM_LEVEL == 2
-    #define SRC_TEX    {{RT_BLOOM2}}
-    #define DST_IMG    {{RT_BLOOM3_IMG}}
-    #define DST_FORMAT {{RT_BLOOM3_FORMAT}}
-#elif BLOOM_LEVEL == 3
-    #define SRC_TEX    {{RT_BLOOM3}}
-    #define DST_IMG    {{RT_BLOOM4_IMG}}
-    #define DST_FORMAT {{RT_BLOOM4_FORMAT}}
-#elif BLOOM_LEVEL == 4
-    #define SRC_TEX    {{RT_BLOOM4}}
-    #define DST_IMG    {{RT_BLOOM5_IMG}}
-    #define DST_FORMAT {{RT_BLOOM5_FORMAT}}
-#elif BLOOM_LEVEL == 5
-    #define SRC_TEX    {{RT_BLOOM5}}
-    #define DST_IMG    {{RT_BLOOM6_IMG}}
-    #define DST_FORMAT {{RT_BLOOM6_FORMAT}}
-#elif BLOOM_LEVEL == 6
-    #define SRC_TEX    {{RT_BLOOM6}}
-    #define DST_IMG    {{RT_BLOOM7_IMG}}
-    #define DST_FORMAT {{RT_BLOOM7_FORMAT}}
-#else
-    #define SRC_TEX    {{RT_BLOOM7}}
-    #define DST_IMG    {{RT_BLOOM8_IMG}}
-    #define DST_FORMAT {{RT_BLOOM8_FORMAT}}
-#endif
-
-uniform sampler2D SRC_TEX;
-layout(DST_FORMAT) uniform writeonly image2D DST_IMG;
+//
+// The buffer pair and the dispatch scale are injected by the build, because one
+// source serves every level and a single source cannot name the slots
+// dynamically. BLOOM_LEVEL is only used for the level-0 prefilter below.
+uniform sampler2D BLOOM_SRC;
+layout({{RT_BLOOM1_FORMAT}}) uniform writeonly image2D BLOOM_DST_IMG;
 
 layout(local_size_x = 8, local_size_y = 8, local_size_z = 1) in;
-// Level 0 writes half resolution, each further level halves again.
-const vec2 workGroupsRender = vec2(0.5 / float(1 << BLOOM_LEVEL));
+// Relative dispatch size. Iris reads this from the *preprocessed* source with a
+// plain float parse, so both components have to be numeric literals. An
+// expression such as vec2(0.5 / float(1 << BLOOM_LEVEL)) is silently ignored and
+// the pass quietly dispatches at full screen resolution instead.
+const vec2 workGroupsRender = vec2(BLOOM_SCALE, BLOOM_SCALE);
 
 vec3 sampleSource(vec2 uv)
 {
-    return texture(SRC_TEX, uv).rgb;
+    return texture(BLOOM_SRC, uv).rgb;
 }
 
-// Upper bound on what enters the pyramid, in display-referred units. The chain
-// stores half floats, so an unbounded source would overflow to inf and the blur
-// taps would smear it across the whole screen. 4096 is ~4000x display white, far
-// past any visible difference after tonemapping, and 8 levels of accumulation
-// still fit in 65504.
-const float BLOOM_SOURCE_CEILING = 4096.0;
+// Half-float ceiling that used to live here is now handled by guardHalf() at the
+// point where the exposure multiply happens, so a single mechanism covers this
+// pass, the RT_HDR stores and the pyramid accumulation. See
+// lib/utility/guards.glsl.
 
 // Group weights sum to 1: centre 1/8, axis neighbours 1/16, corners 1/32.
 vec3 downsample13(vec2 uv, vec2 texel)
@@ -115,26 +86,47 @@ vec3 bloomPrefilter(vec3 color)
 void main()
 {
     ivec2 pixelCoordinate = ivec2(gl_GlobalInvocationID.xy);
-    ivec2 dstSize = imageSize(DST_IMG);
+    ivec2 dstSize = imageSize(BLOOM_DST_IMG);
+
+    // A level is dropped only once it collapses to a single texel: anything with
+    // more than one texel on either axis still carries the widest, flattest part
+    // of the halo and is what makes the glow reach the far edge. Skipping the
+    // write is safe because every colortex is cleared to zero each frame by
+    // default, so the coarser pass above reads a zero level and adds nothing.
+    if (max(dstSize.x, dstSize.y) <= 1)
+    {
+        return;
+    }
+
     if (any(greaterThanEqual(pixelCoordinate, dstSize)))
     {
         return;
     }
 
     vec2 uv    = (vec2(pixelCoordinate) + 0.5) / vec2(dstSize);
-    vec2 texel = 1.0 / vec2(textureSize(SRC_TEX, 0));
+    vec2 texel = 1.0 / vec2(textureSize(BLOOM_SRC, 0));
 
     vec3 color = downsample13(uv, texel);
 
     #if BLOOM_LEVEL == 0
     // Bloom is a sensor effect, so the chain works in display-referred space:
-    // scale the scene radiance by the exposure first, then threshold at 1.0,
-    // which is display white. The ceiling is applied after the exposure so a
-    // high exposure on a bright highlight cannot overflow the half floats.
-    color = min(color * exposureBlock.exposure, vec3(BLOOM_SOURCE_CEILING));
-    color = bloomPrefilter(color);
+    // scale the scene radiance by the exposure first, then either threshold it
+    // (mode 1) or take it whole (mode 0).
+    //
+    // Guarded here as well as at the RT_HDR store: that store bounds the scene
+    // radiance, but this pass multiplies by the exposure (up to 20), so the
+    // product can still leave the half-float range. The pyramid bounds its own
+    // accumulation on every write.
+    vec3 scaled = guardHalf(color * exposureBlock.exposure);
+
+    #if BLOOM_MODE == 0
+    color = scaled;
+    #elif BLOOM_MODE == 1
+    color = bloomPrefilter(scaled);
     #endif
 
-    imageStore(DST_IMG, pixelCoordinate, vec4(color, 1.0));
+    #endif
+
+    imageStore(BLOOM_DST_IMG, pixelCoordinate, vec4(color, 1.0));
 }
 #endif

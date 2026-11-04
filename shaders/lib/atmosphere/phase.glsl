@@ -21,7 +21,7 @@ float hgPhase(float cosTheta, float g)
 // lobe. Measured aerosol phase functions need several lobes to fit both ends of
 // the curve, and this hand-tuned mix is what the RGB look was calibrated with.
 //
-// AEROSOL_PHASE_GAIN is a look-tuning multiplier, not a physical quantity: the
+// AEROSOL_PHASE_GAIN is a look-tuning multiplier, not a physical quantity: the！！这玩意临时补偿多重散射用的，看到这里那么修正注释
 // nested mix keeps the weights normalised, so the gain lifts the horizon glow
 // without changing the shape. It exists only because the RGB tuning depends on it.
 const float AEROSOL_PHASE_GAIN = 1.3;

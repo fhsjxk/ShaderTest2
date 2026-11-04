@@ -46,17 +46,32 @@ shaders/
 | 4 | `RT_VERTEX_LIGHT` | RGBA8 | 1.0 | — | — | **保留通道（顶点低频光照），当前不写入** |
 | 5 | `RT_HDR` | RGBA16F | 1.0 | deferred2 | composite1、post 全链 |
 | 6 | `RT_LUM` | RG16F | 0.03125 | composite1 | composite2 |
-| 7 | `RT_BLOOM1` | RGBA16F | 0.5 | composite3、composite16 | final |
-| 8 | `RT_BLOOM2` | RGBA16F | 0.25 | composite4、composite15 | composite14 |
-| 9 | `RT_BLOOM3` | RGBA16F | 0.125 | composite5、composite14 | composite13 |
-| 10 | `RT_BLOOM4` | RGBA16F | 0.0625 | composite6、composite13 | composite12 |
-| 11 | `RT_BLOOM5` | RGBA16F | 0.03125 | composite7、composite12 | composite11 |
-| 12 | `RT_BLOOM6` | RGBA16F | 0.015625 | composite8、composite11 | composite10 |
-| 13 | `RT_BLOOM7` | RGBA16F | 0.0078125 | composite9、composite10 | composite9 |
-| 14 | `RT_BLOOM8` | RGBA16F | 0.00390625 | composite10 | composite11 |
+| 7 | `RT_BLOOM1` | RGBA16F | 0.5 | composite3、composite21 | composite4、final |
+| 8 | `RT_BLOOM2` | RGBA16F | 0.25 | composite4、composite20 | composite5、composite21 |
+| 9 | `RT_BLOOM3` | RGBA16F | 0.125 | composite5、composite19 | composite6、composite20 |
+| 10 | `RT_BLOOM4` | RGBA16F | 0.0625 | composite6、composite18 | composite7、composite19 |
+| 11 | `RT_BLOOM5` | RGBA16F | 0.03125 | composite7、composite17 | composite8、composite18 |
+| 12 | `RT_BLOOM6` | RGBA16F | 0.015625 | composite8、composite16 | composite9、composite17 |
+| 13 | `RT_BLOOM7` | RGBA16F | 0.0078125 | composite9、composite15 | composite10、composite16 |
+| 14 | `RT_BLOOM8` | RGBA16F | 0.00390625 | composite10、composite14 | composite11、composite15 |
+| 15 | `RT_BLOOM9` | RGBA16F | 0.001953125 | composite11、composite13 | composite12、composite14 |
+| 16 | `RT_BLOOM10` | RGBA16F | 0.0009765625 | composite12 | composite13 |
 
-> Bloom 级数由 `build.py` 的 `BLOOM_LEVELS` 决定（当前 8）；缓冲、pass、本表都随之变化。
-> 每级缓冲在 Iris 里会被 buffer flip 复制一份，8 级合计约占屏幕面积的 1/3。
+> Bloom 级数由 `build.py` 的 `BLOOM_LEVELS` 决定（当前 10）；缓冲、pass、本表都随之变化。
+> **实测边界（Iris 1.10.3，探测包见 `shaderpacks/ColorImgProbe`、`CustomImgProbe`）**：
+> colortex 在 index 0..19 会真实创建并可用，**index ≥ 20 静默退化** —— 抓帧里
+> `colortex20` 的 sampler 与 image 都绑回了 `colortex0` 的纹理（保留了上一个绑定），
+> 既不报错也不写日志。两次抓帧（带/不带 format 声明）结果一致：38 个 4×4 纹理
+> = 19 个缓冲 × 双缓冲，加报告缓冲正好 20。
+> 自定义 image 是另一套硬上限 **16**，超出会打
+> `Only up to 16 images are allowed, but tried to add another image!` 的 ERROR，
+> 且 image 与 sampler 两条路都读回 0。
+> 我们的 17 个缓冲（0..16）落在 20 以内，这是它能工作的原因；想再加级数只剩 3 个槽位，
+> 之后需要回收空槽或改图集布局。
+> 每级缓冲在 Iris 里会被 buffer flip 复制一份，10 级合计约占屏幕面积的 1/3。
+> 只剩 1 texel 的级别由 shader 直接跳过（不写），靠 Iris 每帧把 colortex 清成 0
+> 保证更粗一级读到的是 0、向上累加时贡献为 0。判据是 `max(w, h) <= 1`，
+> 所以 2×1、3×2 这类扁级别仍然保留 —— 它们是让光晕铺满远端的那一层。
 
 G-buffer 写入布局：`RENDERTARGETS = RT_ALBEDO, RT_NORMAL, RT_LIGHTMAP`。
 `RT_LIGHTMAP` 通道：`.r` 方块光 / `.g` 天光 / `.b` AO。
@@ -88,18 +103,24 @@ G-buffer 写入布局：`RENDERTARGETS = RT_ALBEDO, RT_NORMAL, RT_LIGHTMAP`。
 | `deferred2` | `program/deferred/lighting_cs.glsl` | comp | gbuffer, shadow, IMG_SKY, LUT | RT_HDR |
 | `composite1` | `program/post/exposure/measure_cs.glsl` | comp | RT_HDR | RT_LUM |
 | `composite2` | `program/post/exposure/adapt_cs.glsl` | comp | RT_LUM | ExposureBlock |
-| `composite3..10` | `program/post/bloom/downsample_cs.glsl` | comp | RT_HDR → BLOOMn | BLOOMn+1（先乘曝光，转显示参考空间） |
-| `composite11..17` | `program/post/bloom/upsample_cs.glsl` | comp | BLOOMn+1 | BLOOMn（累加） |
+| `composite3..12` | `program/post/bloom/downsample_cs.glsl` | comp | RT_HDR → BLOOMn | BLOOMn+1（先乘曝光，转显示参考空间） |
+| `composite13..21` | `program/post/bloom/upsample_cs.glsl` | comp | BLOOMn+1 | BLOOMn（累加） |
 | `final` | `program/post/final.glsl` | frag+vert | RT_HDR, BLOOM1, ExposureBlock | 背缓冲（屏幕） |
 
-`downsample` / `upsample` 各只有一个源文件，靠薄壳注入的 `BLOOM_LEVEL` 区分槽位
-（见 `build.py` 的 `Pass.defines`）。级别由 `BLOOM_LEVELS` 生成，因此串联 8 级时
-downsample 占 8 个槽位（`BLOOM_LEVEL 0..7`）、upsample 占 7 个（`BLOOM_LEVEL 7..1`）。
+`downsample` / `upsample` 各只有一个源文件，靠薄壳注入的 define 区分槽位
+（见 `build.py` 的 `Pass.defines`）：`BLOOM_SRC` / `BLOOM_DST_IMG` 给出这一趟读写的
+colortex 与 colorimg，`BLOOM_SCALE` 给出相对屏幕的 dispatch 比例。级别由
+`BLOOM_LEVELS` 生成，10 级时 downsample 占 10 个槽位（`BLOOM_LEVEL 0..9`）、
+upsample 占 9 个（`BLOOM_LEVEL 9..1`）。
+
+> `BLOOM_SCALE` 必须是**裸数字字面量**。Iris 用对预处理后源码做 `parseFloat` 的方式
+> 读取 `workGroupsRender`，写成表达式（如 `vec2(0.5 / float(1 << LEVEL))`）会被静默
+> 忽略，pass 退回全屏分辨率 dispatch —— 结果正确但多算 1/4 到上千倍的 invocation。
 
 ```
     gbuffers ─┐                        ┌─> composite1 measure ─> composite2 adapt ─┐
-              ├─> shadow ─> deferred2 ─┼─> composite3..10 downsample               ├─> final
-    deferred1 ┘   (sky, 1/8)   RT_HDR  └─> composite11..17 upsample ───────────────┘
+    ├─> shadow ─> deferred2 ─┼─> composite3..12 downsample               ├─> final
+    deferred1 ┘   (sky, 1/8)   RT_HDR  └─> composite13..21 upsample ───────────────┘
 ```
 
 ---
@@ -115,10 +136,10 @@ downsample 占 8 个槽位（`BLOOM_LEVEL 0..7`）、upsample 占 7 个（`BLOOM
 | 假 GI（中档）、环境光、Cook-Torrance 高光 | `program/deferred/lighting_cs.glsl` + `lib/lighting/tuning.glsl` |
 | 软阴影 PCF | `lib/lighting/shadow.glsl` |
 | 曝光（对数平均 + 中心权重） | `program/post/exposure/{measure,adapt}_cs.glsl`，参数见 `lib/lighting/tuning.glsl` |
-| Bloom（13-tap 降 / tent 上，8 级） | `program/post/bloom/{downsample_cs,upsample_cs}.glsl`，分级依据见 [`DESIGN_GOALS.md`](DESIGN_GOALS.md) §4 |
+| Bloom（13-tap 降 / tent 上，10 级） | `program/post/bloom/{downsample_cs,upsample_cs}.glsl`，分级依据见 [`DESIGN_GOALS.md`](DESIGN_GOALS.md) §4 |
 | 色调映射 / 暗角 | `program/post/final.glsl` |
 
-**单位约定**：见 [`DESIGN_GOALS.md`](DESIGN_GOALS.md) §6。距离 km、系数 1/km、辐亮度与辐照度都以 `NITS_PER_UNIT`（200 cd/m²）为单位。所有 HDR 缓冲都是 16 位浮点。太阳盘物理辐亮度是 8e6 单位，超出半浮点上限 65504，因此写入缓冲时乘 `SUN_DISC_RENDER_SCALE`（1/256 → 3.1e4 单位）；bloom 源另有 `BLOOM_SOURCE_CEILING`（4096）兜底，防止高曝光下溢出成 inf 污染模糊链。
+**单位约定**：见 [`DESIGN_GOALS.md`](DESIGN_GOALS.md) §6。距离 km、系数 1/km、辐亮度与辐照度都以 `NITS_PER_UNIT`（20000 cd/m²）为单位。所有 HDR 缓冲都是 16 位浮点。太阳盘物理辐亮度是 8.0e4 单位（1.6e9 cd/m²），是半浮点上限 65504 的 1.2 倍，因此写入缓冲时乘 `SUN_DISC_RENDER_SCALE`（1/8 → 1.0e4 单位）。写侧守卫由 `GUARD_LEVEL` 分级（`lib/utility/guards.glsl`）：默认 1 = 只夹半浮点上限、NaN 放行；2 = 另加 NaN 清零；0 = 全关。
 
 **调参入口**：
 

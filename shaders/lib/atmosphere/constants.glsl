@@ -15,6 +15,10 @@
 //   scattering (https://ebruneton.github.io/precomputed_atmospheric_scattering/).
 //   They are given as m^-1 in that reference and converted here.
 
+
+// 气溶胶常量最终为基准值，最终实际值会随天气变化，暂时不用动，这些值也需要暴露给用户调整
+// 目前各种宏的命名比较乱，比如“ENABLE_SPECTRAL”和“PHYSICAL_PARAM”（不仅这个例子）命名规则不统一，需要调整这些，需要可以从命名看出属于哪个部分
+
 #ifndef ATMOSPHERE_CONSTANTS
 #define ATMOSPHERE_CONSTANTS
 
@@ -44,7 +48,7 @@ const float SUN_ILLUMINANCE_LUX = 130000.0;
 
 // NOTE: the 4-band path is not calibrated to physical units yet; its constants
 // are the legacy relative values. Only the RGB path (below) is physical.
-const vec4 SUN_IRRADIANCE = vec4(1.68, 1.83, 1.99, 1.31) * 20.0;
+const vec4 SUN_IRRADIANCE = vec4(1.68, 1.83, 1.99, 1.31);
 
 const vec4 RAYLEIGH_SCATTERING_BASE = vec4(6.605e-3, 1.067e-2, 1.842e-2, 3.156e-2);
 const vec4 OZONE_ABSORPTION_BASE    = vec4(3.472e-3, 3.914e-3, 1.349e-3, 11.03e-5) * 0.5;
@@ -79,7 +83,7 @@ const vec3 RAYLEIGH_MULTISCATTER_TINT = vec3(0.2, 0.35, 1.0);
 
 #else
 // Solar irradiance in colour units (lux / NITS_PER_UNIT).
-const vec3 SUN_IRRADIANCE = vec3(1.0831, 0.9799, 0.9541) * SUN_ILLUMINANCE_LUX / NITS_PER_UNIT; // Physical
+const vec3 SUN_IRRADIANCE = vec3(1.0999, 0.9762, 0.9421) * SUN_ILLUMINANCE_LUX / NITS_PER_UNIT;
 
 // ── Tuned coefficient set (RGB rendering) ───────────────────
 // These are the authored values this pack has always rendered with; they are
@@ -94,7 +98,7 @@ const vec3 RAYLEIGH_SCATTERING_BASE =
     mix(vec3(46.0, 95.0, 233.0), vec3(46.0, 89.0, 207.0), 0.5) / 255.0 * 0.03624;
 
 // Ozone: warm tint, magnitude ~1.9e-3 /km.
-const vec3 OZONE_ABSORPTION_BASE = vec3(128.0, 152.0, 0.0) / 255.0 * 0.0019;
+const vec3 OZONE_ABSORPTION_BASE = vec3(152.0, 152.0, 0.0) / 255.0 * 0.0019;
 
 // Aerosol: faintly blue tint, magnitude 0.03 /km.
 const vec3 AEROSOL_SCATTERING_BASE = vec3(153.0, 202.0, 255.0) / 255.0 * 0.035;

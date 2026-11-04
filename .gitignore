@@ -4,5 +4,9 @@ IrisShaders/
 refs/
 __pycache__/
 *.pyc
+# Markdown is scratch by default, but the design docs are real and must be 别改了md暂时不记录
+# tracked -- otherwise a new doc silently never reaches a commit.
 *.md
-docs/
+#!README.md
+docs/*
+#!docs/*.md

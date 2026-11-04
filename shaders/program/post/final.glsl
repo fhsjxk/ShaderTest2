@@ -39,7 +39,16 @@ void main()
     // auto-exposure. Bloom is already in that space and was accumulated from the
     // same exposure, so it is added rather than scaled again.
     vec3 hdr = texelFetch({{RT_HDR}}, pixelCoordinate, 0).rgb * exposureBlock.exposure;
-    hdr += texture({{RT_BLOOM1}}, texcoord).rgb * BLOOM_STRENGTH;
+
+    vec3 bloom = texture({{RT_BLOOM1}}, texcoord).rgb;
+
+    #if BLOOM_MODE == 0
+    hdr = mix(hdr, bloom, BLOOM_STRENGTH);
+    #elif BLOOM_MODE == 1
+    hdr += bloom * BLOOM_STRENGTH;
+    #endif
+
+    // hdr = mix(hdr, texture({{RT_BLOOM1}}, texcoord).rgb, BLOOM_STRENGTH);
 
     color.rgb = pow(aces(hdr), vec3(1.0 / GAMMA));
 

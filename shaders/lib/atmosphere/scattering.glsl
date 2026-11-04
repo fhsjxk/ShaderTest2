@@ -43,7 +43,10 @@ vec34 multiScattering(sampler2D transmitLUT, float cosTheta, float normalizedAlt
 
     // Higher orders as one lobe: 1/6 of the peak at 90 deg to the sun, rising
     // towards it. The 0.01 sets the overall share of the light that comes back.
-    vec34 approxMulti = 0.01 * RAYLEIGH_MULTISCATTER_TINT / (1.0 + 5.0 * exp(-17.92 * cosTheta));
+    // vec34这个名字要改，因为目前这东西只根据ENABLE_SPECTRAL宏来决定是vec3还是vec4，没有通用性，但名字很像通用的东西，这就是一个临时遗留
+    // 下面一行代码实际比较hacky的视觉拟合，需要改，但效果是需要的，后期会使用sebh的多重散射lut方案或者预计算方案
+    vec34 multiScatterColor = mix(mix(RAYLEIGH_MULTISCATTER_TINT, vec34(0.7), 0.7), RAYLEIGH_MULTISCATTER_TINT, smoothstep(0.05, 0.33, cosTheta) + 0.7 * smoothstep(0.02, -0.08, cosTheta));
+    vec34 approxMulti = 0.02 * multiScatterColor / (1.0 + 5.0 * exp(-17.92 * cosTheta));
 
     return groundRadiance + approxMulti;
     #endif
@@ -70,6 +73,9 @@ vec34 computeInscattering(sampler2D transmitLUT, vec3 sunDirection, vec3 rayDire
     }
     else if (atmosphereDist > 0.0)
     {
+        // The nudge is 1e-4 km = 10 cm, not EPS: float32 spacing at planet radius
+        // is ~5e-4 km, so a smaller offset would round away and leave the ray on
+        // the shell.
         rayOrigin += rayDirection * (atmosphereDist + 1e-4);
         float secondDist = raySphereIntersect(rayOrigin, rayDirection, ATMOSPHERE_RADIUS_KM);
         rayLength = (groundDist > 0.0) ? (groundDist - atmosphereDist) : secondDist;

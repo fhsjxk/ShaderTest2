@@ -7,11 +7,13 @@
 //   options.glsl    user-facing switches and tunables
 //   units.glsl      NITS_PER_UNIT and the unit conversions
 //   math.glsl       PI / INV_PI / INV_4PI / EPS / saturate
+//   guards.glsl     write-side half-float / NaN guards, graded by GUARD_LEVEL
 //   rt_formats.glsl generated colortex format declarations
 #include "/settings.glsl"
 #include "/options.glsl"
 #include "/lib/utility/units.glsl"
 #include "/lib/utility/math.glsl"
+#include "/lib/utility/guards.glsl"
 #include "/lib/rt_formats.glsl"
 
 // Alpha cutout threshold used by both the gbuffer and the shadow pass.

@@ -20,6 +20,17 @@ layout(location = 0) out vec4 outBaseColor;
 layout(location = 1) out vec4 outNormal;
 layout(location = 2) out vec4 outLighting0;
 
+// 非常多临时代码，所以在多次重构，这里部分是规范的部分是临时的
+
+// 顶线到像素的变量的这名字也是随便起的
+// in vec2 texcoord;
+// in vec3 color;
+// in vec3 normal;
+// in vec4 lighting;
+// in float sunLighting;
+
+
+
 void main()
 {
     #if defined GBUFFER_WEATHER || defined GBUFFER_WATER || defined GBUFFER_HAND_WATER || defined GBUFFER_ENTITIES_TRANSLUCENT || defined GBUFFER_SKYBASIC || defined GBUFFER_SKYTEXTURED

@@ -7,6 +7,9 @@
 档位规划与关键设计决策见 [`docs/DESIGN_GOALS.md`](docs/DESIGN_GOALS.md)。
 当前仓库的参数集合视为**中档**。
 
+已经定下方案但尚未实现的设计（水面平面反射、水底焦散、体积雾、3D 大气 LUT、
+瑞利相位混合、FSR3 超分、星空与银河）见 [`docs/DESIGN_IDEAS.md`](docs/DESIGN_IDEAS.md)。
+
 **仓库的 `shaders/` 目录与最终 shaderpack 的 `shaders/` 一一对应**：同样的路径、同样的文件名。
 `build.py` 只做两件事——按路径 1:1 复制并替换占位符、生成 `world0/` 的 Iris 槽位薄壳。
 所以「在仓库里看到的文件」与「游戏里加载的文件」是一一可追溯的。
@@ -49,6 +52,9 @@
 build.py                 开发期构建器（模板替换 + 薄壳生成）
 docs/DESIGN_GOALS.md     项目目标、允许的特性、档位规划、关键决策  ← 先读这个
 docs/ARCHITECTURE.md     缓冲区表、pass 表、保留通道、已知缺陷
+docs/DESIGN_IDEAS.md     已定方案但未实现的设计（含 DeepSeek 对话索引）
+docs/DEV_NOTES.md        源码中文注释盘点与待清理项
+docs/VOLUMETRIC_CLOUD_EVAL.md  体积云"神经网络代理光照"方案评估与推进顺序
 NAMING_CONVENTION.md     命名与文件分类规范（含占位符体系）
 shaders/                 与包同构的源码树
   lib/                   纯函数库，按域分目录
