@@ -2,10 +2,3 @@
 shaders/textures/projects/
 IrisShaders/
 refs/
-__pycache__/
-*.pyc
-# Docs live in a separate repository (../ShaderTest2_md). Markdown is ignored
-# here so a stray file cannot be committed back into the pack; the build never
-# reads it.
-*.md
-docs/
