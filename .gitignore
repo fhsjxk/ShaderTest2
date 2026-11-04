@@ -4,9 +4,8 @@ IrisShaders/
 refs/
 __pycache__/
 *.pyc
-# Markdown is scratch by default, but the design docs are real and must be 别改了md暂时不记录
-# tracked -- otherwise a new doc silently never reaches a commit.
+# Docs live in a separate repository (../ShaderTest2_md). Markdown is ignored
+# here so a stray file cannot be committed back into the pack; the build never
+# reads it.
 *.md
-#!README.md
-docs/*
-#!docs/*.md
+docs/
