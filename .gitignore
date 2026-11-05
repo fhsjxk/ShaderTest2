@@ -2,3 +2,4 @@
 shaders/textures/projects/
 IrisShaders/
 refs/
+__pycache__/
