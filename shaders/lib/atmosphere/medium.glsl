@@ -22,9 +22,9 @@ void getAtmosphereCoefficients(
     // Exponential density profiles around the two scale heights.
     float aerosolDensity   = exp(-h / AEROSOL_HEIGHT_SCALE_KM);
 
-    aerosolDensity = 1.0670 * exp(-h / 1.039) + 0.0103 * exp(-h / 11.426);
+    aerosolDensity = 1.0557 * exp(-h / 1.029) + 0.0154 * exp(-h / 10.258);
 
-    aerosolDensity *= 0.5;
+    aerosolDensity *= 0.3;
 
     float molecularDensity = exp(-h / MOLECULAR_HEIGHT_SCALE_KM);
 

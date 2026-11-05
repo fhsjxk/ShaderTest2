@@ -107,12 +107,12 @@ const float OZONE_HALF_THICKNESS_KM = 35.66 * 0.5;
 #ifdef PHYSICAL_PARAM
 const vec3 SUN_IRRADIANCE = vec3(1.0999, 0.9762, 0.9421) * SUN_ILLUMINANCE_LUX / NITS_PER_UNIT;
 
-const vec3 RAYLEIGH_SCATTERING_BASE = vec3(5.84e-3, 1.20e-2, 2.80e-2);
+const vec3 RAYLEIGH_SCATTERING_BASE = vec3(5.8283e-03, 1.1973e-02, 2.7963e-2);
 
-const vec3 OZONE_ABSORPTION_BASE = vec3(2.30e-3, 1.50e-3, 0.0);
+const vec3 OZONE_ABSORPTION_BASE = vec3(2.3043e-03, 1.4997e-03, -1.0997e-4);
 
-const vec3 AEROSOL_SCATTERING_BASE = vec3(7.25e-2, 8.20e-2, 9.56e-2);
-const vec3 AEROSOL_ABSORPTION_BASE = vec3(4.15e-3, 4.91e-3, 6.09e-3);
+const vec3 AEROSOL_SCATTERING_BASE = vec3(6.3834e-02, 7.0709e-02, 8.0580e-02);
+const vec3 AEROSOL_ABSORPTION_BASE = vec3(2.6559e-03, 3.1177e-03, 3.8365e-03);
 
 const vec3 GROUND_ALBEDO = vec3(10.0, 40.0, 100.0) / 255.0;
 
@@ -121,8 +121,8 @@ const vec3 RAYLEIGH_MULTISCATTER_TINT = vec3(0.2, 0.35, 1.0);
 const float MOLECULAR_HEIGHT_SCALE_KM = 8.455;
 const float AEROSOL_HEIGHT_SCALE_KM   = 1.2;
 
-const float OZONE_PEAK_ALTITUDE_KM  = 22.35;
-const float OZONE_HALF_THICKNESS_KM = 35.66 * 0.5;
+const float OZONE_PEAK_ALTITUDE_KM  = 22.38;
+const float OZONE_HALF_THICKNESS_KM = 35.38 * 0.5;
 
 #else
 // Solar irradiance in colour units (lux / NITS_PER_UNIT).

@@ -19,7 +19,7 @@
 // 这些值最终应该暴露给用户调整，所以迁移到shaders/options.glsl中
 
 // Clear-sky horizontal illuminance at midday, lux (10-20 klx on a clear day).
-const float SKY_ILLUMINANCE_LUX = 20000.0; // 临时
+const float SKY_ILLUMINANCE_LUX = 15000.0; // 临时
 
 // Illuminance from one full-strength block light, lux. A hand-held flame is of
 // the order of 20 lux at close range; Minecraft's lightmap is used as the
@@ -87,6 +87,6 @@ const float EXPOSURE_CENTER_FALLOFF = 3.0;
 
 // Clamp on the multiplier: -10 / +10 stops around the reference scene.
 const float EXPOSURE_MIN = 0.01;
-const float EXPOSURE_MAX = 20.0;
+const float EXPOSURE_MAX = 30.0;
 
 #endif
