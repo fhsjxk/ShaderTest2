@@ -22,6 +22,7 @@ Run from the repository root:
 from __future__ import annotations
 
 import json
+import re
 import struct
 from pathlib import Path
 
@@ -30,6 +31,7 @@ SOURCE = Path(r"E:\Users\qwert\Desktop\PYTest\COMPA\outputs\realtime_params.json
 TARGET = ROOT / "shaders" / "textures" / "phase_lut.dat"
 PROPERTIES = ROOT / "shaders" / "shaders.properties"
 PHASE_GLSL = ROOT / "shaders" / "lib" / "atmosphere" / "phase.glsl"
+CONSTANTS_GLSL = ROOT / "shaders" / "lib" / "atmosphere" / "constants.glsl"
 
 BIN_COUNT = 4
 
@@ -81,7 +83,7 @@ def main() -> None:
             total += 0.5 * (table[j] * u0 + table[j + 1] * u1) * (u1 - u0)
         print(f"  bin {i}: mean = {2.0 * total:.4f}")
 
-    # ── the other two declarations ──────────────────────────────
+    # ── the other declarations ──────────────────────────────────
     print()
     problems = []
 
@@ -95,13 +97,37 @@ def main() -> None:
     if expected_glsl not in glsl:
         problems.append(f"lib/atmosphere/phase.glsl: must contain `{expected_glsl}`")
 
+    # The AOD edges and the per-bin gains live in constants.glsl and have to be
+    # copied across by hand, so they are checked too: a stale gain scales the
+    # whole sky's brightness and nothing would flag it.
+    constants = CONSTANTS_GLSL.read_text(encoding="utf-8")
+
+    def vec3_of(name: str) -> list[float] | None:
+        m = re.search(rf"{name}\s*=\s*vec3\(([^)]*)\)", constants)
+        if not m:
+            return None
+        return [float(v) for v in m.group(1).split(",")]
+
+    for i, entry in enumerate(bins):
+        m = re.search(rf"AEROSOL_AOD_BIN_{i}\s*=\s*([0-9.eE+-]+)", constants)
+        if not m or abs(float(m.group(1)) - entry["aod_550"]) > 1e-12:
+            problems.append(f"constants.glsl: AEROSOL_AOD_BIN_{i} != {entry['aod_550']:.17g}")
+
+        have = vec3_of(f"AEROSOL_GAIN_BIN_{i}")
+        want = entry["channel"]["k_b"]
+        if have is None:
+            problems.append(f"constants.glsl: AEROSOL_GAIN_BIN_{i} missing")
+        elif any(abs(a - b) / max(abs(b), 1e-9) > 1e-4 for a, b in zip(have, want)):
+            problems.append(f"constants.glsl: AEROSOL_GAIN_BIN_{i} is {have}, JSON says {[round(v, 5) for v in want]}")
+
     if problems:
-        print("MISMATCH -- the shader would sample the wrong angle:")
+        print("MISMATCH -- the shader would use stale data:")
         for line in problems:
             print("  " + line)
         raise SystemExit(1)
 
     print(f"declarations agree on N = {lut_size}")
+    print("constants.glsl agrees on the AOD edges and all four gains")
 
 
 if __name__ == "__main__":

@@ -101,9 +101,10 @@ float aerosolPhase(float cosTheta)
 // the curve, and this hand-tuned mix is what the RGB look was calibrated with.
 //
 // AEROSOL_PHASE_GAIN is a look-tuning multiplier, not a physical quantity: it
-// stands in for the multiple scattering that AEROSOL_PHASE_GAIN was tuned
+// stands in for the multiple scattering that the RGB tuning was calibrated
 // against. The nested mix keeps the weights normalised, so the gain lifts the
 // horizon glow without changing the shape.
+// ！！这玩意临时补偿多重散射用的，看到这里那么修正注释
 const float AEROSOL_PHASE_GAIN = 1.3;
 
 float aerosolPhase(float cosTheta)

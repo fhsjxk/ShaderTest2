@@ -147,10 +147,10 @@ const float AEROSOL_AOD_BIN_3 = 0.90793762471479722;
 // k = total scattered / single scattered, per AOD bin. Applied once to the whole
 // single-scattering integral, which is why the phase table below carries no gain
 // of its own.
-const vec3 AEROSOL_GAIN_BIN_0 = vec3(1.05946, 1.04929, 1.05100);
-const vec3 AEROSOL_GAIN_BIN_1 = vec3(1.13592, 1.13687, 1.14091);
-const vec3 AEROSOL_GAIN_BIN_2 = vec3(1.37675, 1.37091, 1.36936);
-const vec3 AEROSOL_GAIN_BIN_3 = vec3(2.13430, 2.17047, 2.13308);
+const vec3 AEROSOL_GAIN_BIN_0 = vec3(1.05458, 1.05204, 1.04928);
+const vec3 AEROSOL_GAIN_BIN_1 = vec3(1.13562, 1.14109, 1.14088);
+const vec3 AEROSOL_GAIN_BIN_2 = vec3(1.37241, 1.37027, 1.36646);
+const vec3 AEROSOL_GAIN_BIN_3 = vec3(2.13996, 2.17290, 2.12768);
 
 // Two-term Mie profile: a dense boundary layer over a thin free-troposphere
 // background. The amplitudes are divided out so that rho(0) = 1, which is what
