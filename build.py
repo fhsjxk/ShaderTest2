@@ -128,9 +128,17 @@ FROXEL_SIZE_Y  = 0.83
 # larger than the data area itself; invocations outside it return immediately.
 FROXEL_WORKGROUPS = 0.054
 
+# Multiple-scattering transfer LUT (SEBH20): square, absolute size in texels.
+MULTISCAT_SIZE = 32
+
 
 IMG_LIST = [
     IMG("IMG_TRANSMIT_LUT", image="RGBA16F", relative=False, size="256 64"),
+    # Multiple-scattering transfer function Psi_ms (SEBH20). Indexed by sun zenith
+    # cosine on x and altitude fraction on y; stores the transfer divided by the
+    # solar irradiance, so it stays valid if the sun's intensity is retuned.
+    IMG("IMG_MULTISCAT",    image="RGBA16F", relative=False,
+        size=f"{MULTISCAT_SIZE} {MULTISCAT_SIZE}"),
     # Sky-view LUT holds radiance in colour units plus the scaled solar disc.
     IMG("IMG_SKYVIEW",      image="RGBA16F", relative=False, size="512 256"),
     IMG("IMG_SKY",          image="RGBA16F", relative=True,  size="0.125 0.125"),
@@ -164,16 +172,20 @@ class Pass:
 PIPELINE = [
     Pass("setup1",      "program/setup/exposure_init_cs.glsl",       ("comp",)),
     Pass("prepare1",    "program/prepare/transmittance_lut_cs.glsl", ("comp",)),
-    Pass("prepare2",    "program/prepare/skyview_cs.glsl",           ("comp",)),
+    # Multiple-scattering transfer LUT (SEBH20). Needs prepare1's transmittance LUT
+    # and must precede every consumer -- skyview and froxel both call
+    # computeInscattering -- hence its own slot ahead of them.
+    Pass("prepare2",    "program/prepare/multiscat_cs.glsl",         ("comp",)),
+    Pass("prepare3",    "program/prepare/skyview_cs.glsl",           ("comp",)),
     # Aerial perspective: fills the froxel stack from the transmittance LUT. Runs
     # in prepare because it needs no geometry, and because doing it here keeps
     # the deferred slots free. With six slices the whole build is ~1e5 slabs, so
     # depth-based culling would save far less than the coupling it costs.
-    Pass("prepare3",    "program/prepare/froxel_cs.glsl",           ("comp",)),
+    Pass("prepare4",    "program/prepare/froxel_cs.glsl",           ("comp",)),
     # Frame constants: one thread, once per frame, filling the SSBO every later pass
     # reads. Must follow prepare1 (it samples the transmittance LUT) and precede
     # deferred2 (the consumer). See docs/FRAME_CONSTANTS.md.
-    Pass("prepare4",    "program/prepare/frame_constants_cs.glsl",  ("comp",)),
+    Pass("prepare5",    "program/prepare/frame_constants_cs.glsl",  ("comp",)),
     Pass("deferred1",   "program/deferred/sky_cs.glsl",              ("comp",)),
     Pass("deferred2",   "program/deferred/lighting_cs.glsl",         ("comp",)),
 
@@ -342,6 +354,8 @@ def build_template_vars() -> TemplateEngine:
             f"{str(img.clear).lower()} {str(img.relative).lower()} {img.size}{depth}"
         )
     tmpl.add("{{GENERATED_IMG_DECLS}}", "\n".join(img_lines))
+    tmpl.add("{{IMG_MULTISCAT_WORKGROUPS}}",
+             f"ivec3({MULTISCAT_SIZE // 8}, {MULTISCAT_SIZE // 8}, 1)")
     tmpl.add("{{FROXEL_SLICES}}", str(FROXEL_SLICES))
     tmpl.add("{{FROXEL_PADDING_PX}}", str(FROXEL_PADDING_PX))
     # Bare literal: Iris parses workGroupsRender with a plain float parse, so an

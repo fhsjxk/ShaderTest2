@@ -31,6 +31,46 @@ vec3 aces(vec3 x)
     return clamp((x * (a * x + b)) / (x * (c * x + d) + e), 0.0, 1.0);
 }
 
+// GT7 (Gran Turismo 7): a rational shoulder that only starts compressing at 0.76,
+// plus a highlight desaturation towards white. Below the shoulder the curve is
+// linear, so mid-tones keep their contrast; the toe offset subtracts a small
+// parabola under 0.08, which deepens the shadows.
+vec3 gt7(vec3 c)
+{
+    const float startCompression = 0.8 - 0.04;   // 0.76
+    const float desaturation     = 0.15;
+
+    float x      = min(c.r, min(c.g, c.b));
+    float offset = (x < 0.08) ? (x - 6.25 * x * x) : 0.04;
+    c -= offset;
+
+    float peak = max(c.r, max(c.g, c.b));
+    if (peak < startCompression)
+    {
+        return c;
+    }
+
+    const float d = 1.0 - startCompression;
+    float newPeak = 1.0 - d * d / (peak + d - startCompression);
+    c *= newPeak / peak;
+
+    float g = 1.0 - 1.0 / (desaturation * (peak - newPeak) + 1.0);
+    return mix(c, vec3(newPeak), g);
+}
+
+// TONEMAP_OPERATOR selects between them (options.glsl).
+vec3 toneMap(vec3 c)
+{
+    #if TONEMAP_OPERATOR == 1
+    // The toe subtraction can push a dark pixel below zero, and the caller raises
+    // the result to 1/gamma: a negative base would come out NaN and bloom would
+    // smear it across the frame.
+    return max(gt7(c * 1.5), 0.0);
+    #else
+    return aces(c);
+    #endif
+}
+
 void main()
 {
     ivec2 pixelCoordinate = ivec2(gl_FragCoord.xy);
@@ -50,7 +90,7 @@ void main()
 
     // hdr = mix(hdr, texture({{RT_BLOOM1}}, texcoord).rgb, BLOOM_STRENGTH);
 
-    color.rgb = pow(aces(hdr), vec3(1.0 / GAMMA));
+    color.rgb = pow(toneMap(hdr), vec3(1.0 / GAMMA));
 
     float vignetteMask = 1.0 - smoothstep(VIGNETTE_START, VIGNETTE_END, distance(texcoord, vec2(0.5, 0.5))) * VIGNETTE_AMOUNT;
     color.rgb *= vignetteMask * vignetteMask;
@@ -60,7 +100,7 @@ void main()
 
     if (texcoord.x < 0.5 && texcoord.y >= 0.5)
     {
-        color.rgb = pow(aces(texelFetch({{RT_HDR}}, ivec2(texcoord * vec2(textureSize({{RT_HDR}}, 0))), 0).rgb * exposureBlock.exposure), vec3(1.0 / GAMMA));
+        color.rgb = pow(toneMap(texelFetch({{RT_HDR}}, ivec2(texcoord * vec2(textureSize({{RT_HDR}}, 0))), 0).rgb * exposureBlock.exposure), vec3(1.0 / GAMMA));
     }
     else if (texcoord.x >= 0.5 && texcoord.y >= 0.5)
     {

@@ -20,11 +20,47 @@
 //      tinted like Rayleigh-scattered light and peaking towards the sun.
 // The caller scales the result by the local scattering coefficient, so what is
 // returned here is an angular distribution, not radiance.
+//
+// MULTISCATTERING_METHOD (options.glsl) picks between that and SEBH20
+// (Hillaire 2020), which replaces the whole approximation with a 32x32 transfer
+// LUT Psi_ms built once per frame by prepare2:
+//
+//     Psi_ms = L_2ndOrder / (1 - f_ms)                        (paper Eq.10)
+//
+// where L_2ndOrder is the sphere-averaged single-scattered luminance reaching the
+// point and f_ms the fraction of light that scatters again, both obtained from one
+// 64-direction integration. Multiple scattering is treated as isotropic, so Psi_ms
+// carries no view dependence -- which is exactly why it fits behind the same
+// interface: an angular distribution the caller multiplies by sigma_s.
+
+#if MULTISCATTERING_METHOD == 1 && !defined(MULTISCAT_BUILD)
+uniform sampler2D {{IMG_MULTISCAT_SAMPLER}};
+const ivec2 MULTISCAT_SIZE = ivec2({{IMG_MULTISCAT_SIZE_X}}, {{IMG_MULTISCAT_SIZE_Y}});
+
+// Psi_ms, divided by the solar irradiance at build time so this stays a pure
+// transfer function: the caller applies SUN_IRRADIANCE to both terms alike.
+vec34 sampleMultiScatteringLUT(float sunCosZenith, float altitudeKm)
+{
+    vec2 unit = clamp(vec2(sunCosZenith * 0.5 + 0.5, altitudeKm / ATMOSPHERE_THICKNESS_KM),
+                      0.0, 1.0);
+    // Map the unit interval onto the sub-texel centres; without the renormalisation
+    // the bilinear footprint leaks past the first and last texel of the axis.
+    vec2 uv = (unit + 0.5 / vec2(MULTISCAT_SIZE))
+              * (vec2(MULTISCAT_SIZE) / (vec2(MULTISCAT_SIZE) + 1.0));
+    return texture({{IMG_MULTISCAT_SAMPLER}}, uv).rgb;
+}
+#endif
 
 vec34 multiScattering(sampler2D transmitLUT, float cosTheta, float normalizedAlt, float r)
 {
-    #ifndef MULTISCATTERING
+    #if defined(MULTISCAT_BUILD)
+    // Building the transfer LUT itself: only first-order scattering may
+    // contribute, otherwise the pass would read the LUT it is writing.
     return vec34(0.0);
+    #elif !defined(MULTISCATTERING)
+    return vec34(0.0);
+    #elif MULTISCATTERING_METHOD == 1
+    return sampleMultiScatteringLUT(cosTheta, normalizedAlt * ATMOSPHERE_THICKNESS_KM);
     #else
     // Solid angle of the ground disc seen from the sample: the cap of
     // half-angle asin(R/r), i.e. 2*pi*(1 - cos(halfAngle)) = 2*pi*(1 - sqrt(r²-R²)/r).
@@ -46,7 +82,7 @@ vec34 multiScattering(sampler2D transmitLUT, float cosTheta, float normalizedAlt
     // vec34这个名字要改，因为目前这东西只根据ENABLE_SPECTRAL宏来决定是vec3还是vec4，没有通用性，但名字很像通用的东西，这就是一个临时遗留
     // 下面一行代码实际比较hacky的视觉拟合，需要改，但效果是需要的，后期会使用sebh的多重散射lut方案或者预计算方案
     vec34 multiScatterColor = mix(mix(RAYLEIGH_MULTISCATTER_TINT, vec34(0.7), 0.7), RAYLEIGH_MULTISCATTER_TINT, smoothstep(0.05, 0.33, cosTheta) + 0.7 * smoothstep(0.02, -0.08, cosTheta));
-    vec34 approxMulti = 0.02 * multiScatterColor / (1.0 + 5.0 * exp(-17.92 * cosTheta));
+    vec34 approxMulti = 0.01 * multiScatterColor / (1.0 + 5.0 * exp(-17.92 * cosTheta));
 
     return groundRadiance + approxMulti;
     #endif
@@ -54,8 +90,15 @@ vec34 multiScattering(sampler2D transmitLUT, float cosTheta, float normalizedAlt
 
 // ── Inscattering ────────────────────────────────────────────
 
-vec34 computeInscattering(sampler2D transmitLUT, vec3 sunDirection, vec3 rayDirection, float altitude)
+// The march itself. `fmsOut` is the SEBH20 transfer integral
+//     ∫ T(s) · sigma_s(s) · (1 - e^{-sigma_t ds}) / sigma_t
+// i.e. the fraction of the light that scatters again along this ray; the
+// multiple-scattering LUT is built from it and every other caller ignores it.
+vec34 computeInscatteringCore(sampler2D transmitLUT, vec3 sunDirection, vec3 rayDirection,
+                              float altitude, out vec34 fmsOut)
 {
+    fmsOut = vec34(0.0);
+
     vec3 rayOrigin = vec3(0.0, PLANET_RADIUS_KM + altitude, 0.0);
     vec3 sunDirN = normalize(sunDirection);
 
@@ -125,10 +168,25 @@ vec34 computeInscattering(sampler2D transmitLUT, vec3 sunDirection, vec3 rayDire
         vec34 integrated = (source - source * stepT) / max(ext, vec34(EPS));
 
         L += T * integrated;
+
+        #if MULTISCATTERING_METHOD == 1
+        // Second-order transfer for the Psi_ms LUT: the share of the light that is
+        // scattered again along this ray, with the same analytic step integral.
+        vec34 msScatter = molecularScattering + aerosolScattering;
+        fmsOut += T * (msScatter - msScatter * stepT) / max(ext, vec34(EPS));
+        #endif
         T *= stepT;
     }
 
     return L;
+}
+
+// Callers that only want the radiance; the transfer integral is for the LUT build.
+vec34 computeInscattering(sampler2D transmitLUT, vec3 sunDirection, vec3 rayDirection,
+                          float altitude)
+{
+    vec34 fmsUnused;
+    return computeInscatteringCore(transmitLUT, sunDirection, rayDirection, altitude, fmsUnused);
 }
 
 #endif

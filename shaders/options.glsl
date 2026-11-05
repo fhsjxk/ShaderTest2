@@ -64,6 +64,21 @@
 
 //#define ENABLE_SPECTRAL
 #define MULTISCATTERING
+// Which multiple-scattering model to use when MULTISCATTERING is enabled.
+//   0  cheap analytic two-term approximation (ground bounce + one tuned lobe)
+//   1  SEBH20 / Hillaire 2020: 32x32 isotropic transfer LUT built by prepare2
+// The LUT costs ~64 single-scattering marches per texel on a 32x32 grid but makes
+// the per-sample cost cheaper (one fetch instead of three).
+#define MULTISCATTERING_METHOD 1 // [0 1]
+
+// ── Tone mapping ─────────────────────────────────
+// Applied in the final pass to the display-referred radiance (scene radiance times
+// the auto-exposure).
+//   0  ACES, Narkowicz fit -- long filmic shoulder, slightly desaturated highlights
+//   1  GT7 (Gran Turismo 7) -- linear up to 0.76, rational shoulder above it,
+//      highlights pushed towards white. Brighter at the white point (0.869 vs
+//      0.804 at 1.0), so switching may want a lower EXPOSURE_TARGET.
+#define TONEMAP_OPERATOR 0 // [0 1]
 
 // ── Aerial perspective (froxel fog) ──────────────
 // The stack is 16 slices over a fixed 128 km, squared in depth, and the march runs

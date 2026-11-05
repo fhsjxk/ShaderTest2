@@ -29,7 +29,7 @@ const int INSCATTERING_STEPS  = 32;
 
 // ── Planet and shell ────────────────────────────────────────
 const float PLANET_RADIUS_KM        = 6371.0;
-const float ATMOSPHERE_THICKNESS_KM = 100.0;
+const float ATMOSPHERE_THICKNESS_KM = 70.0;
 const float ATMOSPHERE_RADIUS_KM    = PLANET_RADIUS_KM + ATMOSPHERE_THICKNESS_KM;
 
 // ── Minecraft space -> atmosphere space ─────────────────────
@@ -91,25 +91,38 @@ const vec4 GROUND_ALBEDO = vec4(0.57, 0.45, 0.37, 0.8) * 0.1;
 // normalised to the fourth band.
 const vec4 RAYLEIGH_MULTISCATTER_TINT = vec4(0.217, 0.347, 0.594, 1.0);
 
+const float MOLECULAR_HEIGHT_SCALE_KM = 8.5;
+const float AEROSOL_HEIGHT_SCALE_KM   = 1.2;
+
+const float OZONE_PEAK_ALTITUDE_KM  = 22.35;
+const float OZONE_HALF_THICKNESS_KM = 35.66 * 0.5;
+
 #else
 
 // Physical: computed from spectrum, but RGB pipeline introduces inaccuracies.
 // Artistic: adjusted from physical to better match ground truth.
 
+#define PHYSICAL_PARAM
+
 #ifdef PHYSICAL_PARAM
 const vec3 SUN_IRRADIANCE = vec3(1.0999, 0.9762, 0.9421) * SUN_ILLUMINANCE_LUX / NITS_PER_UNIT;
 
-const vec3 RAYLEIGH_SCATTERING_BASE =
-    mix(vec3(46.0, 95.0, 233.0), vec3(46.0, 89.0, 207.0), 0.5) / 255.0 * 0.03624;
+const vec3 RAYLEIGH_SCATTERING_BASE = vec3(5.84e-3, 1.20e-2, 2.80e-2);
 
-const vec3 OZONE_ABSORPTION_BASE = vec3(190.0, 170.0, 0.0) / 255.0 * 0.0019;
+const vec3 OZONE_ABSORPTION_BASE = vec3(2.30e-3, 1.50e-3, 0.0);
 
-const vec3 AEROSOL_SCATTERING_BASE = vec3(160.0, 195.0, 255.0) / 255.0 * 0.03;
-const vec3 AEROSOL_ABSORPTION_BASE = vec3(1.0) * 0.0003;
+const vec3 AEROSOL_SCATTERING_BASE = vec3(7.25e-2, 8.20e-2, 9.56e-2);
+const vec3 AEROSOL_ABSORPTION_BASE = vec3(4.15e-3, 4.91e-3, 6.09e-3);
 
 const vec3 GROUND_ALBEDO = vec3(10.0, 40.0, 100.0) / 255.0;
 
 const vec3 RAYLEIGH_MULTISCATTER_TINT = vec3(0.2, 0.35, 1.0);
+
+const float MOLECULAR_HEIGHT_SCALE_KM = 8.455;
+const float AEROSOL_HEIGHT_SCALE_KM   = 1.2;
+
+const float OZONE_PEAK_ALTITUDE_KM  = 22.35;
+const float OZONE_HALF_THICKNESS_KM = 35.66 * 0.5;
 
 #else
 // Solar irradiance in colour units (lux / NITS_PER_UNIT).
@@ -141,10 +154,6 @@ const vec3 GROUND_ALBEDO = vec3(10.0, 40.0, 100.0) / 255.0;
 // multiScattering() where the light has lost its original direction.
 const vec3 RAYLEIGH_MULTISCATTER_TINT = vec3(0.2, 0.35, 1.0);
 
-#endif
-
-#endif
-
 // ── Density profiles ────────────────────────────────────────
 // Scale heights, km. US Standard Atmosphere: 8.5 km molecular, 1.2 km aerosol.
 const float MOLECULAR_HEIGHT_SCALE_KM = 8.5;
@@ -154,11 +163,16 @@ const float AEROSOL_HEIGHT_SCALE_KM   = 1.2;
 const float OZONE_PEAK_ALTITUDE_KM  = 22.35;
 const float OZONE_HALF_THICKNESS_KM = 35.66 * 0.5;
 
+#endif
+
+#endif
+
 // Broadband absorption tail below the ozone peak, fitted to a measured profile.
 // Marked as tuned because the source data set was never recorded.
-const float OZONE_TAIL_SCALE    = 1e-3;
-const float OZONE_TAIL_DECAY    = 0.07771971;
-const float OZONE_TAIL_EXPONENT = 1.16364243;
+// Mistake
+// const float OZONE_TAIL_SCALE    = 1e-3;
+// const float OZONE_TAIL_DECAY    = 0.07771971;
+// const float OZONE_TAIL_EXPONENT = 1.16364243;
 
 // ── Spectral (4 band) -> linear sRGB ────────────────────────
 const mat4x3 SPECTRAL_TO_RGB = mat4x3(
