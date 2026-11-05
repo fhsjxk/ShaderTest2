@@ -9,18 +9,6 @@
 #include "/lib/prelude.glsl"
 #include "/lib/atmosphere/constants.glsl"
 
-// ── Minecraft space -> atmosphere space ─────────────────────
-// Minecraft's Y axis is in blocks, the model is in km. 1 block = 0.02 km keeps
-// the horizon at the height the vanilla sky has.
-const float MC_SEA_LEVEL    = 64.0;
-const float KM_PER_BLOCK    = 0.02;
-const float MIN_ALTITUDE_KM = 0.001;
-
-float altitudeFromEyePosition(float eyePosition)
-{
-    return max((eyePosition - MC_SEA_LEVEL) * KM_PER_BLOCK, MIN_ALTITUDE_KM);
-}
-
 // ── Sun disc ────────────────────────────────────────────────
 // Angular radius of the sun, radians (0.2665 degrees). The disc is small but not
 // sub-pixel -- at 1080p with a 70 deg vertical field of view it is about 8 px

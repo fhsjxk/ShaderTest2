@@ -32,6 +32,36 @@ const float PLANET_RADIUS_KM        = 6371.0;
 const float ATMOSPHERE_THICKNESS_KM = 100.0;
 const float ATMOSPHERE_RADIUS_KM    = PLANET_RADIUS_KM + ATMOSPHERE_THICKNESS_KM;
 
+// ── Minecraft space -> atmosphere space ─────────────────────
+// Minecraft's Y axis is in blocks, the model is in km. 1 block = 0.02 km keeps
+// the horizon at the height the vanilla sky has, which makes the world megascale:
+// sea level is 0 km and a 100-block hill is 2 km. Everything that mixes blocks
+// with the atmosphere -- altitudes and view distances alike -- must use this.
+const float MC_SEA_LEVEL    = 64.0;
+const float KM_PER_BLOCK    = 0.005; //这是一个大气比例缩放，而非km每方块，每方块总是是1m，将其与FOG_DISTANCE_SCALE统一成一个参数
+const float MIN_ALTITUDE_KM = 0.001;
+
+float altitudeFromEyePosition(float eyePosition)
+{
+    return max((eyePosition - MC_SEA_LEVEL) * KM_PER_BLOCK, MIN_ALTITUDE_KM);
+}
+
+// Camera height, shared by every consumer of the atmosphere. `eyeAltitude` is
+// Iris's camera Y in blocks; nothing in the model reads it directly, everything
+// goes through altitudeFromEyePosition(), so the fog, the sky and the sun disc
+// cannot end up at three different heights.
+uniform float eyeAltitude;
+
+float cameraAltitudeKm()
+{
+    return altitudeFromEyePosition(eyeAltitude);
+}
+
+float cameraRadiusKm()
+{
+    return PLANET_RADIUS_KM + cameraAltitudeKm();
+}
+
 #ifdef ENABLE_SPECTRAL
 #define vec34 vec4
 #else

@@ -104,6 +104,29 @@ class IMG:
     clear:    bool = False
     relative: bool = True
     size:     str  = "1.0 1.0"
+    depth:    int  = 1
+
+
+# Slice count of the aerial-perspective froxel stack, and the screen fraction one
+# slice occupies. The slices are stacked vertically in one 2D atlas: slice k owns
+# rows [k*H/N, (k+1)*H/N), and a sample is addressed as (screen x, slice + screen y)
+# so both screen axes stay available.
+FROXEL_SLICES = 16
+# Three quantities are stored side by side, one third of the atlas width each:
+# single scattering, multiple scattering only, and RGB transmittance.
+FROXEL_CHANNELS = 3
+# One tile is a twentieth of the frame across (96 x 54 usable texels at 1080p).
+# Texels of copied border around every tile, so a bilinear lookup that lands on a
+# tile edge reads a copy of that tile's edge instead of the neighbouring tile. The
+# atlas is grown by this much rather than shrinking the data area: 0.154 x 0.83 at
+# 1080p is 295 x 896, i.e. 98 x 56 per tile with 96 x 54 of it holding data.
+FROXEL_PADDING_PX = 1
+FROXEL_SIZE_X  = 0.154
+FROXEL_SIZE_Y  = 0.83
+# Dispatch fraction. It has to cover the data area of the padded tiles at any
+# resolution (0.054 => 103 x 58 at 1080p, 207 x 116 at 4K), so it is a little
+# larger than the data area itself; invocations outside it return immediately.
+FROXEL_WORKGROUPS = 0.054
 
 
 IMG_LIST = [
@@ -111,6 +134,16 @@ IMG_LIST = [
     # Sky-view LUT holds radiance in colour units plus the scaled solar disc.
     IMG("IMG_SKYVIEW",      image="RGBA16F", relative=False, size="512 256"),
     IMG("IMG_SKY",          image="RGBA16F", relative=True,  size="0.125 0.125"),
+    # Aerial-perspective froxel stack: 2D in screen space (a twentieth of the
+    # frame) and exponential in view depth. Iris 1.10.8 does not deliver a 3D
+    # custom image -- the z parameter is dropped and the sampler is left unbound --
+    # so the slices are stacked vertically into one 2D atlas instead: slice k owns
+    # rows [k*H/N, (k+1)*H/N). Sampling lerps between two slice centres itself,
+    # which costs one extra fetch but reads only slice centres, so no filtering
+    # ever crosses a slice boundary. Every tile carries FROXEL_PADDING_PX of
+    # copied border.
+    IMG("IMG_FROXEL",       image="RGBA16F", relative=True,
+        size=f"{FROXEL_SIZE_X:g} {FROXEL_SIZE_Y:g}"),
 ]
 
 
@@ -132,6 +165,15 @@ PIPELINE = [
     Pass("setup1",      "program/setup/exposure_init_cs.glsl",       ("comp",)),
     Pass("prepare1",    "program/prepare/transmittance_lut_cs.glsl", ("comp",)),
     Pass("prepare2",    "program/prepare/skyview_cs.glsl",           ("comp",)),
+    # Aerial perspective: fills the froxel stack from the transmittance LUT. Runs
+    # in prepare because it needs no geometry, and because doing it here keeps
+    # the deferred slots free. With six slices the whole build is ~1e5 slabs, so
+    # depth-based culling would save far less than the coupling it costs.
+    Pass("prepare3",    "program/prepare/froxel_cs.glsl",           ("comp",)),
+    # Frame constants: one thread, once per frame, filling the SSBO every later pass
+    # reads. Must follow prepare1 (it samples the transmittance LUT) and precede
+    # deferred2 (the consumer). See docs/FRAME_CONSTANTS.md.
+    Pass("prepare4",    "program/prepare/frame_constants_cs.glsl",  ("comp",)),
     Pass("deferred1",   "program/deferred/sky_cs.glsl",              ("comp",)),
     Pass("deferred2",   "program/deferred/lighting_cs.glsl",         ("comp",)),
 
@@ -289,13 +331,22 @@ def build_template_vars() -> TemplateEngine:
         tmpl.add("{{IMG_" + safe.upper() + "_SIZE}}",   img.size)
         tmpl.add("{{IMG_" + safe.upper() + "_SIZE_X}}", sizeX)
         tmpl.add("{{IMG_" + safe.upper() + "_SIZE_Y}}", sizeY)
+        tmpl.add("{{IMG_" + safe.upper() + "_SIZE_Z}}", str(img.depth))
 
+        # The z dimension is optional and absolute; omit it for flat images so the
+        # declared type stays a plain 2D texture.
+        depth = "" if img.depth <= 1 else f" {img.depth}"
         img_lines.append(
             f"image.img_{safe} = sampler_{safe} "
             f"{img.pixel.lower()} {img.image.lower()} {img.type_.lower()} "
-            f"{str(img.clear).lower()} {str(img.relative).lower()} {img.size}"
+            f"{str(img.clear).lower()} {str(img.relative).lower()} {img.size}{depth}"
         )
     tmpl.add("{{GENERATED_IMG_DECLS}}", "\n".join(img_lines))
+    tmpl.add("{{FROXEL_SLICES}}", str(FROXEL_SLICES))
+    tmpl.add("{{FROXEL_PADDING_PX}}", str(FROXEL_PADDING_PX))
+    # Bare literal: Iris parses workGroupsRender with a plain float parse, so an
+    # expression there is silently ignored.
+    tmpl.add("{{FROXEL_WORKGROUPS}}", f"{FROXEL_WORKGROUPS:g}")
 
     # ── Shader-type markers ─────────────────────────────────────
     for st in ("SHADER_COMP", "SHADER_FRAG", "SHADER_VERT", "SHADER_GEOM"):

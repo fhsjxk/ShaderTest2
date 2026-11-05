@@ -65,6 +65,25 @@
 //#define ENABLE_SPECTRAL
 #define MULTISCATTERING
 
+// ── Aerial perspective (froxel fog) ──────────────
+// The stack is 16 slices over a fixed 128 km, squared in depth, and the march runs
+// to the end of the medium along the view ray -- the top of the atmosphere or the
+// ground, whichever it reaches first (see lib/atmosphere/aerial.glsl). Nothing caps
+// the distance any earlier, so the stack is always integrated in full.
+//
+// How far the fog reaches, relative to the physical atmosphere. 1.0 is the real
+// density at the real scale. 2.0 stretches the fog over twice the distance
+// (thinner at a given range, clearer vistas), 0.5 packs it into half the range
+// (denser haze). This scales the fog's extinction only; the sky keeps the physical
+// scale, so at strong values the horizon and the fog can disagree slightly.
+//
+// Implemented by dividing both the lookup distance and the march cut-off by the
+// scale, which is what makes the option stretch the distance axis rather than just
+// clip it. The render distance is deliberately not involved, because the pass that
+// builds the stack draws no geometry and cannot read `far` reliably.
+
+#define FOG_DISTANCE_SCALE 1.0
+
 // ── DEBUG ────────────────────────────────────────────────────
 //#define DEBUG_VIEW
 

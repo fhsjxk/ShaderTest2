@@ -7,7 +7,6 @@ uniform sampler2D {{IMG_TRANSMIT_LUT_SAMPLER}};
 uniform vec3 sunDirection;
 uniform mat4 gbufferModelViewInverse;
 uniform mat4 gbufferProjectionInverse;
-uniform float eyeAltitude;
 uniform float viewWidth;
 uniform float viewHeight;
 
@@ -56,7 +55,7 @@ void main()
     vec3 viewPos = (gbufferProjectionInverse * vec4(clipPos, 1.0)).xyz;
     vec3 viewRay = mat3(gbufferModelViewInverse) * viewPos;
 
-    vec34 sky = computeInscattering({{IMG_TRANSMIT_LUT_SAMPLER}}, sunDirection, normalize(viewRay), altitudeFromEyePosition(eyeAltitude));
+    vec34 sky = computeInscattering({{IMG_TRANSMIT_LUT_SAMPLER}}, sunDirection, normalize(viewRay), cameraAltitudeKm());
     #ifdef ENABLE_SPECTRAL
     sky.rgb = rgbFromSpectral(sky);
     #endif

@@ -9,6 +9,7 @@
 #include "/lib/atmosphere/medium.glsl"
 #include "/lib/atmosphere/transmittance.glsl"
 #include "/lib/atmosphere/scattering.glsl"
+#include "/lib/atmosphere/aerial.glsl"
 #include "/lib/atmosphere/skyview.glsl"
 #include "/lib/atmosphere/scene.glsl"
 
