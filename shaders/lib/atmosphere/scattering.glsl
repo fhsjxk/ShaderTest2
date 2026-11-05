@@ -128,7 +128,15 @@ vec34 computeInscatteringCore(sampler2D transmitLUT, vec3 sunDirection, vec3 ray
 
     float dt = rayLength / float(INSCATTERING_STEPS);
 
+    // Single and multiple scattering are accumulated separately under
+    // PHYSICAL_PARAM: the aerosol's higher orders come from a fitted gain applied
+    // once to the whole single-scattering integral, while the multiple-scattering
+    // LUT only carries Rayleigh. Mixing them in one accumulator would apply the
+    // gain to the Rayleigh multiple scattering as well.
     vec34 L = vec34(0.0);
+    #ifdef PHYSICAL_PARAM
+    vec34 multiL = vec34(0.0);
+    #endif
     vec34 T = vec34(1.0);
 
     // The phase functions are evaluated for the angle between the view ray and
@@ -156,18 +164,31 @@ vec34 computeInscatteringCore(sampler2D transmitLUT, vec3 sunDirection, vec3 ray
         vec34 singleScatter = (molecularScattering * rayleighPhaseVal
                              + aerosolScattering * aerosolPhaseVal) * transToSun;
 
-        vec34 multiScatter = multiScattering(transmitLUT, sunCosTheta, normalizedH, r)
-                           * (molecularScattering + aerosolScattering);
+        #ifdef PHYSICAL_PARAM
+        // Rayleigh only: aerosol-vs-aerosol scattering is in aerosolScatteringGain().
+        vec34 msScatterColor = molecularScattering;
+        #else
+        vec34 msScatterColor = molecularScattering + aerosolScattering;
+        #endif
 
-        // Irradiance times scattering coefficient times phase gives radiance per
-        // unit length; the loop integrates over length.
-        vec34 source = SUN_IRRADIANCE * (singleScatter + multiScatter);
+        vec34 multiScatter = multiScattering(transmitLUT, sunCosTheta, normalizedH, r)
+                           * msScatterColor;
 
         // Analytic integration of a constant source over the step.
         vec34 stepT = exp(-ext * dt);
-        vec34 integrated = (source - source * stepT) / max(ext, vec34(EPS));
 
+        #ifdef PHYSICAL_PARAM
+        vec34 singleSource = SUN_IRRADIANCE * singleScatter;
+        vec34 multiSource  = SUN_IRRADIANCE * multiScatter;
+        L      += T * (singleSource - singleSource * stepT) / max(ext, vec34(EPS));
+        multiL += T * (multiSource - multiSource * stepT) / max(ext, vec34(EPS));
+        #else
+        // Irradiance times scattering coefficient times phase gives radiance per
+        // unit length; the loop integrates over length.
+        vec34 source = SUN_IRRADIANCE * (singleScatter + multiScatter);
+        vec34 integrated = (source - source * stepT) / max(ext, vec34(EPS));
         L += T * integrated;
+        #endif
 
         #if MULTISCATTERING_METHOD == 1
         // Second-order transfer for the Psi_ms LUT: the share of the light that is
@@ -178,7 +199,17 @@ vec34 computeInscatteringCore(sampler2D transmitLUT, vec3 sunDirection, vec3 ray
         T *= stepT;
     }
 
+    #ifdef PHYSICAL_PARAM
+    // The fitted gain covers every scattering order above the first, for the
+    // aerosol only. It is deliberately not applied while building the transfer
+    // LUT: that LUT is Rayleigh-only and the gain belongs to the aerosol.
+    #ifndef MULTISCAT_BUILD
+    L *= aerosolScatteringGain();
+    #endif
+    return L + multiL;
+    #else
     return L;
+    #endif
 }
 
 // Callers that only want the radiance; the transfer integral is for the LUT build.

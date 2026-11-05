@@ -71,6 +71,22 @@
 // the per-sample cost cheaper (one fetch instead of three).
 #define MULTISCATTERING_METHOD 1 // [0 1]
 
+// ── Aerosol density (PHYSICAL_PARAM only) ────────
+// Two knobs, as the OPAC fitting project specifies:
+//
+//   AOD(550) = AEROSOL_DENSITY_MULT * AEROSOL_HEIGHT_STRETCH * 0.0908
+//
+// The multiplier scales the whole column; the stretch scales the profile's height
+// (rho(z/s)), which lifts the haze without thickening the layer that the eye
+// passes through. Both also shift the phase/gain table, so the angular look
+// follows the amount of aerosol instead of staying frozen.
+//
+// 1.0 / 1.0 is the fitted preset. Values far above 2.0 leave the calibrated AOD
+// range (0.908 is the last bin) and the interpolation clamps, so the sky stops
+// getting hazier and starts looking flat.
+#define AEROSOL_DENSITY_MULT   1.0 // [0.25 0.35 0.5 0.65 0.8 1.0 1.25 1.5 2.0 2.5 3.0 4.0]
+#define AEROSOL_HEIGHT_STRETCH 1.0 // [0.5 0.65 0.8 1.0 1.25 1.5 2.0]
+
 // ── Tone mapping ─────────────────────────────────
 // Applied in the final pass to the display-referred radiance (scene radiance times
 // the auto-exposure).

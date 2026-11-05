@@ -208,11 +208,24 @@ void integrateAerialStep(
     vec34 singleSource = (molecularScattering * rayleighPhaseVal
                         + aerosolScattering * aerosolPhaseVal) * transToSun;
 
+    #ifdef PHYSICAL_PARAM
+    // Rayleigh only, matching computeInscattering(): the aerosol's higher orders
+    // come from the fitted gain below, not from the transfer LUT.
+    vec34 multiSource = multiScattering(transmitLUT, sunCosTheta, normalizedH, r)
+                      * molecularScattering;
+    #else
     vec34 multiSource = multiScattering(transmitLUT, sunCosTheta, normalizedH, r)
                       * (molecularScattering + aerosolScattering);
+    #endif
 
     singleSource *= SUN_IRRADIANCE;
     multiSource  *= SUN_IRRADIANCE;
+
+    #ifdef PHYSICAL_PARAM
+    // The gain converts the single-scattering integral into "single plus every
+    // higher order the aerosol adds", so it belongs on the single term only.
+    singleSource *= aerosolScatteringGain();
+    #endif
 
     // Analytic integration of a constant source over the step.
     vec34 stepT = exp(-ext * ds);

@@ -109,7 +109,10 @@ const vec3 SUN_IRRADIANCE = vec3(1.0999, 0.9762, 0.9421) * SUN_ILLUMINANCE_LUX /
 
 const vec3 RAYLEIGH_SCATTERING_BASE = vec3(5.8283e-03, 1.1973e-02, 2.7963e-2);
 
-const vec3 OZONE_ABSORPTION_BASE = vec3(2.3043e-03, 1.4997e-03, -1.0997e-4);
+// The blue coefficient comes out of the sRGB matrix fit as -1.10e-7 m^-1, which is
+// a fitting artefact (ozone cannot amplify blue). Clamped to 0 so the extinction
+// stays monotone; the true blue value is ~1e-9, far below anything visible.
+const vec3 OZONE_ABSORPTION_BASE = vec3(2.3043e-03, 1.4997e-03, 0.0);
 
 const vec3 AEROSOL_SCATTERING_BASE = vec3(6.3834e-02, 7.0709e-02, 8.0580e-02);
 const vec3 AEROSOL_ABSORPTION_BASE = vec3(2.6559e-03, 3.1177e-03, 3.8365e-03);
@@ -123,6 +126,44 @@ const float AEROSOL_HEIGHT_SCALE_KM   = 1.2;
 
 const float OZONE_PEAK_ALTITUDE_KM  = 22.38;
 const float OZONE_HALF_THICKNESS_KM = 35.38 * 0.5;
+
+// ── Aerosol optics from the OPAC fit ────────────────────────
+// One preset, four AOD bins. The preset is the "mine" mixture at RH 50 %; the
+// bins are spaced geometrically so linear interpolation between neighbours stays
+// within ~3 % of a direct Monte Carlo evaluation inside the range.
+//
+// AOD(550 nm) = AEROSOL_DENSITY_MULT * AEROSOL_HEIGHT_STRETCH * AEROSOL_AOD_PRESET
+//
+// i.e. the density multiplier scales the whole column and the stretch scales the
+// scale height, so the two together decide how much aerosol the ray sees.
+const float AEROSOL_AOD_PRESET = 0.09079376247147974;
+
+const float AEROSOL_AOD_BIN_0 = 0.04539688123573986;
+const float AEROSOL_AOD_BIN_1 = 0.12322609416475905;
+const float AEROSOL_AOD_BIN_2 = 0.33448708082500478;
+const float AEROSOL_AOD_BIN_3 = 0.90793762471479722;
+
+// Energy gain standing in for aerosol-vs-aerosol multiple scattering:
+// k = total scattered / single scattered, per AOD bin. Applied once to the whole
+// single-scattering integral, which is why the phase table below carries no gain
+// of its own.
+const vec3 AEROSOL_GAIN_BIN_0 = vec3(1.05946, 1.04929, 1.05100);
+const vec3 AEROSOL_GAIN_BIN_1 = vec3(1.13592, 1.13687, 1.14091);
+const vec3 AEROSOL_GAIN_BIN_2 = vec3(1.37675, 1.37091, 1.36936);
+const vec3 AEROSOL_GAIN_BIN_3 = vec3(2.13430, 2.17047, 2.13308);
+
+// Two-term Mie profile: a dense boundary layer over a thin free-troposphere
+// background. The amplitudes are divided out so that rho(0) = 1, which is what
+// keeps the column AOD equal to the fitted value.
+const float AEROSOL_MIE_AMP_FAST   = 1.0557;
+const float AEROSOL_MIE_SCALE_FAST = 1.029;
+const float AEROSOL_MIE_AMP_SLOW   = 0.0154;
+const float AEROSOL_MIE_SCALE_SLOW = 10.258;
+
+float aerosolAOD550()
+{
+    return AEROSOL_DENSITY_MULT * AEROSOL_HEIGHT_STRETCH * AEROSOL_AOD_PRESET;
+}
 
 #else
 // Solar irradiance in colour units (lux / NITS_PER_UNIT).
